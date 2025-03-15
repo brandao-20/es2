@@ -1,4 +1,4 @@
-using ES2_TP_ComparadorPrecos_BACKEND.models;
+using ES2_TP_ComparadorPrecos_BACKEND.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
