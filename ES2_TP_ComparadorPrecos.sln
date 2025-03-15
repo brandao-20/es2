@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ES2_TP_ComparadorPrecos", "ES2_TP_ComparadorPrecos\ES2_TP_ComparadorPrecos.csproj", "{CEF6881B-5015-4C13-8B05-CC8A9438394F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ES2_TP_ComparadorPrecos_BACKEND", "ES2_TP_ComparadorPrecos_BACKEND\ES2_TP_ComparadorPrecos_BACKEND.csproj", "{DA56B487-E1D5-4C02-9A66-BC772D847E53}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CEF6881B-5015-4C13-8B05-CC8A9438394F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CEF6881B-5015-4C13-8B05-CC8A9438394F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CEF6881B-5015-4C13-8B05-CC8A9438394F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CEF6881B-5015-4C13-8B05-CC8A9438394F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA56B487-E1D5-4C02-9A66-BC772D847E53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA56B487-E1D5-4C02-9A66-BC772D847E53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA56B487-E1D5-4C02-9A66-BC772D847E53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA56B487-E1D5-4C02-9A66-BC772D847E53}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

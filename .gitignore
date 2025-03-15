@@ -1,0 +1,15 @@
+﻿# Build artifacts
+bin/
+obj/
+*.exe
+*.dll
+
+# Rider / Visual Studio
+.idea/
+.vs/
+*.user
+*.suo
+
+# User secrets
+**/appsettings.Development.json
+**/appsettings.*.local.json
