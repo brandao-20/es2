@@ -1,0 +1,52 @@
+﻿@page "/criarproduto"
+@using ES2_TP_ComparadorPrecos_WebApp.Models
+@inject HttpClient Http
+
+<h3>Criar Produto</h3>
+
+<EditForm Model="novoProduto" OnValidSubmit="HandleSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Nome:</label>
+        <InputText class="form-control" @bind-Value="novoProduto.Nome" />
+    </div>
+    <div class="mb-3">
+        <label>Marca:</label>
+        <InputText class="form-control" @bind-Value="novoProduto.Marca" />
+    </div>
+    <div class="mb-3">
+        <label>Descrição:</label>
+        <InputText class="form-control" @bind-Value="novoProduto.Descricao" />
+    </div>
+    <div class="mb-3">
+        <label>Categoria ID:</label>
+        <InputNumber class="form-control" @bind-Value="novoProduto.CategoriaId" />
+    </div>
+    <button type="submit" class="btn btn-primary">Criar Produto</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <p>@mensagem</p>
+}
+
+@code {
+    private Produto novoProduto = new Produto();
+    private string? mensagem;
+
+    private async Task HandleSubmit()
+    {
+        var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
+        if (response.IsSuccessStatusCode)
+        {
+            mensagem = "Produto criado com sucesso!";
+            novoProduto = new Produto(); // Limpar formulário
+        }
+        else
+        {
+            mensagem = "Erro ao criar produto.";
+        }
+    }
+}
