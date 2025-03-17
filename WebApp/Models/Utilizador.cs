@@ -1,4 +1,4 @@
-﻿namespace ES2_TP_ComparadorPrecos_WebApp.Models
+﻿namespace WebApp.Models
 {
     public class Utilizador
     {

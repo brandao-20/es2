@@ -3,13 +3,55 @@ bin/
 obj/
 *.exe
 *.dll
+*.log
+*.cache
+*.pdb
+*.mdb
+**/publish/
+**/publishOutput/
+**/TestResults/
+*.speccache
 
-# Rider / Visual Studio
+# Rider
 .idea/
+*.sln.ide/
+*.sln.docstates
+*.sln.iml
+*.dotSettings.user
+.ReSharper*/ 
+*_Resharper*/ 
+*.DotSettings.user
+*.sln.DotSettings
+
+# Visual Studio
 .vs/
 *.user
 *.suo
+*.csproj.user
+*.csproj.vspscc
+*.csproj.vssettings
 
-# User secrets
+# User secrets / local configs
 **/appsettings.Development.json
 **/appsettings.*.local.json
+**/appsettings.*.secrets.json
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# Others
+*.swp
+*.swm
+*.tmp
+*.bak
+*.old
+*.orig
+
+# Rider / VS Code workspace settings
+*.code-workspace
+.vscode/

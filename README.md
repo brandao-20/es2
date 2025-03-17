@@ -10,5 +10,5 @@ Plataforma de Comparação de Preços desenvolvida em .NET 8 (Web API + Blazor).
 5. `dotnet run`
 
 ## Estrutura
-- `ES2_TP_ComparadorPrecos_BACKEND`: Projeto Web API
-- `ES2_TP_ComparadorPrecos`: Projeto Blazor (frontend)
+- `WebAPI`: Projeto Web API (backend)
+- `WebApp`: Projeto Blazor (frontend)
