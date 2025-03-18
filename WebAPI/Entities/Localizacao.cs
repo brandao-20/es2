@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace ES2_TP_ComparadorPrecos_WebAPI.Entities;
+namespace WebAPI.Entities;
 
 public partial class Localizacao
 {

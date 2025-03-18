@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using ES2_TP_ComparadorPrecos_WebAPI.Context;
+using WebAPI.Context;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,16 +13,26 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Adicionar serviços de Controllers e Swagger
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevCorsPolicy", policy =>
+    {
+        policy
+            // Origem do teu Blazor
+            .WithOrigins("http://localhost:5116")
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Lê as configurações do JWT do appsettings.json
+// Configuração do JWT
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 string jwtKey = jwtSettings["Key"] ?? "chave_default_muito_segura_aqui";
-string jwtIssuer = jwtSettings["Issuer"] ?? "https://meusite.com";
-string jwtAudience = jwtSettings["Audience"] ?? "https://meusite.com";
+string jwtIssuer = jwtSettings["Issuer"] ?? "http://localhost:5000";
+string jwtAudience = jwtSettings["Audience"] ?? "http://localhost:5000";
 
-// Configurar autenticação usando JWT e Google OAuth
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -43,6 +53,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddGoogle(options =>
 {
+    // Ajusta se fores usar Google OAuth. Em dev, podes registrar "http://localhost:5000/signin-google"
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"];
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
 });
@@ -64,7 +75,6 @@ app.UseExceptionHandler(errorApp =>
         var contextFeature = context.Features.Get<IExceptionHandlerFeature>();
         if (contextFeature != null)
         {
-            // Aqui você pode formatar a resposta conforme necessário.
             await context.Response.WriteAsync(new
             {
                 StatusCode = context.Response.StatusCode,
@@ -81,14 +91,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-// Ativar autenticação e autorização
+app.UseCors("DevCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Mapear os controllers
 app.MapControllers();
-
-// Executar a aplicação
 app.Run();

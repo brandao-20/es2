@@ -1,9 +1,9 @@
-﻿using ES2_TP_ComparadorPrecos_WebAPI.Context;
-using ES2_TP_ComparadorPrecos_WebAPI.Entities;
+﻿using WebAPI.Context;
+using WebAPI.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace ES2_TP_ComparadorPrecos_WebAPI.Controllers
+namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using ES2_TP_ComparadorPrecos_WebAPI.Entities;
+using WebAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace ES2_TP_ComparadorPrecos_WebAPI.Context;
+namespace WebAPI.Context;
 
 public partial class AppDbContext : DbContext
 {
