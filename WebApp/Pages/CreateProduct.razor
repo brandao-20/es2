@@ -1,13 +1,14 @@
 ﻿@page "/criarproduto"
 @using WebApp.Models
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
+<PageTitle>Criar Produto</PageTitle>
 <h3>Criar Produto</h3>
 
 <EditForm Model="novoProduto" OnValidSubmit="HandleSubmit">
     <DataAnnotationsValidator />
     <ValidationSummary />
-
     <div class="mb-3">
         <label>Nome:</label>
         <InputText class="form-control" @bind-Value="novoProduto.Nome" />
@@ -21,7 +22,7 @@
         <InputText class="form-control" @bind-Value="novoProduto.Descricao" />
     </div>
     <div class="mb-3">
-        <label>Categoria ID:</label>
+        <label>ID da Categoria:</label>
         <InputNumber class="form-control" @bind-Value="novoProduto.CategoriaId" />
     </div>
     <button type="submit" class="btn btn-primary">Criar Produto</button>
@@ -33,16 +34,16 @@
 }
 
 @code {
-    private Produto novoProduto = new Produto();
+    private Produto novoProduto = new();
     private string? mensagem;
-
+    
     private async Task HandleSubmit()
     {
         var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
         if (response.IsSuccessStatusCode)
         {
             mensagem = "Produto criado com sucesso!";
-            novoProduto = new Produto(); // Limpar formulário
+            Navigation.NavigateTo("/produtos");
         }
         else
         {

@@ -10,7 +10,7 @@
         public int ProdutoId { get; set; }
         public int LojaId { get; set; }
         public int UtilizadorId { get; set; }
-
+    
         public Produto? Produto { get; set; }
         public Loja? Loja { get; set; }
         public TipoAcao? TipoAcao { get; set; }

@@ -1,7 +1,7 @@
-﻿using WebAPI.Context;
-using WebAPI.Entities;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using WebAPI.Context;
+using WebAPI.Entities;
 
 namespace WebAPI.Controllers
 {
@@ -10,18 +10,18 @@ namespace WebAPI.Controllers
     public class LocalizacoesController : ControllerBase
     {
         private readonly AppDbContext _context;
-
+    
         public LocalizacoesController(AppDbContext context)
         {
             _context = context;
         }
-
+    
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Localizacao>>> GetAll()
         {
             return await _context.Localizacaos.ToListAsync();
         }
-
+    
         [HttpGet("{id}")]
         public async Task<ActionResult<Localizacao>> GetById(int id)
         {
@@ -29,7 +29,7 @@ namespace WebAPI.Controllers
             if (localizacao == null) return NotFound();
             return localizacao;
         }
-
+    
         [HttpPost]
         public async Task<ActionResult<Localizacao>> Create(Localizacao localizacao)
         {
@@ -37,12 +37,12 @@ namespace WebAPI.Controllers
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetById), new { id = localizacao.LocalizacaoId }, localizacao);
         }
-
+    
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, Localizacao localizacao)
         {
             if (id != localizacao.LocalizacaoId) return BadRequest();
-
+    
             _context.Entry(localizacao).State = EntityState.Modified;
             try
             {
@@ -55,18 +55,18 @@ namespace WebAPI.Controllers
             }
             return NoContent();
         }
-
+    
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var localizacao = await _context.Localizacaos.FindAsync(id);
             if (localizacao == null) return NotFound();
-
+    
             _context.Localizacaos.Remove(localizacao);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-
+    
         private bool Exists(int id)
         {
             return _context.Localizacaos.Any(e => e.LocalizacaoId == id);

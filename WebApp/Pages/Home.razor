@@ -1,7 +1,32 @@
-﻿@page "/"
+@page "/"
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
-<PageTitle>Home</PageTitle>
+@if (AuthService.IsLoggedIn)
+{
+    <RedirectToHome />
+}
+else
+{
+    <h1>Bem-vindo à Plataforma de Comparação de Preços!</h1>
+    <p>Aqui você pode pesquisar produtos sem login, ou efetuar login para mais funcionalidades.</p>}
 
-<h1>Hello, world!</h1>
+@code {
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsLoggedIn)
+        {
+            RedirectToHome();
+        }
+    }
 
-Welcome to your new app.
+    private void RedirectToHome()
+    {
+        if (AuthService.IsAdmin)
+            Navigation.NavigateTo("/homeadmin");
+        else if (AuthService.IsManager)
+            Navigation.NavigateTo("/homeusermanager");
+        else
+            Navigation.NavigateTo("/homeuser");
+    }
+}

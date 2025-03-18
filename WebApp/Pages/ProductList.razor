@@ -2,6 +2,7 @@
 @using WebApp.Models
 @inject HttpClient Http
 
+<PageTitle>Lista de Produtos</PageTitle>
 <h3>Lista de Produtos</h3>
 
 @if (produtos == null)
@@ -16,33 +17,32 @@ else
 {
     <table class="table">
         <thead>
-        <tr>
-            <th>ID</th>
-            <th>Nome</th>
-            <th>Marca</th>
-            <th>Categoria</th>
-        </tr>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Marca</th>
+                <th>Categoria</th>
+            </tr>
         </thead>
         <tbody>
-        @foreach (var prod in produtos)
-        {
-            <tr>
-                <td>@prod.ProdutoId</td>
-                <td>@prod.Nome</td>
-                <td>@prod.Marca</td>
-                <td>@prod.Categoria?.Nome</td>
-            </tr>
-        }
+            @foreach (var prod in produtos)
+            {
+                <tr>
+                    <td>@prod.ProdutoId</td>
+                    <td>@prod.Nome</td>
+                    <td>@prod.Marca</td>
+                    <td>@prod.Categoria?.Nome</td>
+                </tr>
+            }
         </tbody>
     </table>
 }
 
 @code {
     private List<Produto>? produtos;
-
+    
     protected override async Task OnInitializedAsync()
     {
-        // Chama o endpoint do backend para obter produtos
         produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
     }
 }

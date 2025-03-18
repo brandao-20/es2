@@ -6,7 +6,6 @@
         public string Nome { get; set; } = string.Empty;
         public string Endereco { get; set; } = string.Empty;
         public int? LocalizacaoId { get; set; }
-        
         public Localizacao? Localizacao { get; set; }
     }
 }

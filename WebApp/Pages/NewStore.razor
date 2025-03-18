@@ -1,0 +1,49 @@
+@page "/stores/new"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<h2>Adicionar Nova Loja</h2>
+
+<EditForm Model="newStore" OnValidSubmit="HandleSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3">
+        <label>Nome da Loja:</label>
+        <InputText class="form-control" @bind-Value="newStore.Name" />
+    </div>
+    <div class="mb-3">
+        <label>URL do Google Maps:</label>
+        <InputText type="url" class="form-control" @bind-Value="newStore.MapsUrl" placeholder="https://maps.google.com/..." />
+    </div>
+    <button type="submit" class="btn btn-primary">Salvar Loja</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@code {
+    private Store newStore = new Store();
+    private string message = "";
+
+    private async Task HandleSubmit()
+    {
+        var response = await Http.PostAsJsonAsync("api/stores", newStore);
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Loja criada com sucesso!";
+            Navigation.NavigateTo("/stores");
+        }
+        else
+        {
+            message = "Erro ao criar loja.";
+        }
+    }
+
+    public class Store
+    {
+        public string Name { get; set; } = string.Empty;
+        public string MapsUrl { get; set; } = string.Empty;
+    }
+}

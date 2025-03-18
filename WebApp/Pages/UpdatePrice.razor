@@ -1,0 +1,45 @@
+@page "/updateprice"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Atualizar Preço</PageTitle>
+<h3>Atualizar Preço do Produto</h3>
+
+<EditForm Model="priceUpdate" OnValidSubmit="HandleUpdate">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3">
+        <label>ID do Registo de Preço:</label>
+        <InputNumber class="form-control" @bind-Value="priceUpdate.RegistoPrecoId" />
+    </div>
+    <div class="mb-3">
+        <label>Novo Preço:</label>
+        <InputNumber class="form-control" @bind-Value="priceUpdate.Preco" />
+    </div>
+    <button type="submit" class="btn btn-primary">Atualizar Preço</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <p>@mensagem</p>
+}
+
+@code {
+    private RegistosPreco priceUpdate = new();
+    private string? mensagem;
+    
+    private async Task HandleUpdate()
+    {
+        var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{priceUpdate.RegistoPrecoId}", priceUpdate);
+        if (response.IsSuccessStatusCode)
+        {
+            mensagem = "Preço atualizado com sucesso!";
+            Navigation.NavigateTo("/produtos");
+        }
+        else
+        {
+            mensagem = "Erro ao atualizar preço.";
+        }
+    }
+}

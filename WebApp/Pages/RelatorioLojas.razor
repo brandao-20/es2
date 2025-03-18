@@ -1,0 +1,93 @@
+@page "/relatoriolojas"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<PageTitle>Relatório de Lojas</PageTitle>
+<h3>Relatório de Lojas</h3>
+
+@if (lojasReport == null)
+{
+    <p>Carregando relatório...</p>
+}
+else
+{
+    @foreach (var loja in lojasReport)
+    {
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>@loja.Nome</strong> - @loja.Endereco
+            </div>
+            <div class="card-body">
+                <p><em>Localização:</em> @loja.Localizacao?.Cidade, @loja.Localizacao?.Pais</p>
+                <p><strong>Produtos por Categoria:</strong></p>
+                <ul>
+                    @foreach (var cat in loja.CategoriaCounts)
+                    {
+                        <li>@cat.CategoriaNome: @cat.Count produtos</li>
+                    }
+                </ul>
+                <p><strong>Produtos e Preços:</strong></p>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Último Preço</th>
+                            <th>Data do Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var prod in loja.Produtos)
+                        {
+                            <tr>
+                                <td>@prod.ProdutoNome</td>
+                                <td>@prod.LatestPrice</td>
+                                <td>@prod.LatestDate.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<LojaReportDto>? lojasReport;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        lojasReport = await Http.GetFromJsonAsync<List<LojaReportDto>>("api/Relatorios/lojas");
+    }
+    
+    public class LojaReportDto
+    {
+        public int LojaId { get; set; }
+        public string Nome { get; set; } = string.Empty;
+        public string Endereco { get; set; } = string.Empty;
+        public LocalizacaoDto? Localizacao { get; set; }
+        public List<CategoriaCountDto> CategoriaCounts { get; set; } = new();
+        public List<ProdutoPriceDto> Produtos { get; set; } = new();
+    }
+    
+    public class LocalizacaoDto
+    {
+        public int LocalizacaoId { get; set; }
+        public string? Cidade { get; set; }
+        public string? Pais { get; set; }
+    }
+    
+    public class CategoriaCountDto
+    {
+        public int CategoriaId { get; set; }
+        public string? CategoriaNome { get; set; }
+        public int Count { get; set; }
+    }
+    
+    public class ProdutoPriceDto
+    {
+        public int ProdutoId { get; set; }
+        public string? ProdutoNome { get; set; }
+        public decimal LatestPrice { get; set; }
+        public DateTime LatestDate { get; set; }
+    }
+}

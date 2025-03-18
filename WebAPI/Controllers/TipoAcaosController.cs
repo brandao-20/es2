@@ -1,7 +1,7 @@
-﻿using WebAPI.Context;
-using WebAPI.Entities;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using WebAPI.Context;
+using WebAPI.Entities;
 
 namespace WebAPI.Controllers
 {
@@ -10,18 +10,18 @@ namespace WebAPI.Controllers
     public class TipoAcaosController : ControllerBase
     {
         private readonly AppDbContext _context;
-
+    
         public TipoAcaosController(AppDbContext context)
         {
             _context = context;
         }
-
+    
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TipoAcao>>> GetAll()
         {
             return await _context.TipoAcaos.ToListAsync();
         }
-
+    
         [HttpGet("{id}")]
         public async Task<ActionResult<TipoAcao>> GetById(int id)
         {
@@ -29,7 +29,7 @@ namespace WebAPI.Controllers
             if (tipo == null) return NotFound();
             return tipo;
         }
-
+    
         [HttpPost]
         public async Task<ActionResult<TipoAcao>> Create(TipoAcao tipo)
         {
@@ -37,7 +37,7 @@ namespace WebAPI.Controllers
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetById), new { id = tipo.TipoAcaoId }, tipo);
         }
-
+    
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, TipoAcao tipo)
         {
@@ -54,18 +54,18 @@ namespace WebAPI.Controllers
             }
             return NoContent();
         }
-
+    
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var tipo = await _context.TipoAcaos.FindAsync(id);
             if (tipo == null) return NotFound();
-
+    
             _context.TipoAcaos.Remove(tipo);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-
+    
         private bool Exists(int id)
         {
             return _context.TipoAcaos.Any(e => e.TipoAcaoId == id);

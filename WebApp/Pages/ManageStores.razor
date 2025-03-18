@@ -1,0 +1,11 @@
+@page "/stores"
+@inject NavigationManager Navigation
+
+<h2>Gerir Lojas</h2>
+<p>Aqui você poderá listar, editar e remover lojas.</p>
+
+<button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+
+@code {
+    private void GoBack() => Navigation.NavigateTo("/homeadmin");
+}

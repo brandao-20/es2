@@ -1,13 +1,15 @@
 ﻿@page "/login"
 @using System.Net.Http.Json
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
+<PageTitle>Login</PageTitle>
 <h3>Login</h3>
 
 <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
     <DataAnnotationsValidator />
     <ValidationSummary />
-
     <div class="mb-3">
         <label>Username:</label>
         <InputText class="form-control" @bind-Value="loginRequest.Username" />
@@ -19,14 +21,14 @@
     <button type="submit" class="btn btn-primary">Login</button>
 </EditForm>
 
-@if (!string.IsNullOrEmpty(mensagem))
+@if (!string.IsNullOrEmpty(message))
 {
-    <p>@mensagem</p>
+    <p>@message</p>
 }
 
 @code {
-    private LoginRequest loginRequest = new LoginRequest();
-    private string? mensagem;
+    private LoginRequest loginRequest = new();
+    private string message = "";
 
     private async Task HandleLogin()
     {
@@ -34,23 +36,35 @@
         if (response.IsSuccessStatusCode)
         {
             var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            // Guarda o token, por exemplo, no localStorage (usando JS interop) ou num serviço de autenticação
-            mensagem = $"Login bem-sucedido! Token: {result?.Token}";
+            if (result is not null)
+            {
+                AuthService.UserName = loginRequest.Username;
+                AuthService.Role = result.Role;
+                AuthService.Token = result.Token;
+                // Redireciona conforme o papel
+                if (result.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+                    Navigation.NavigateTo("/homeadmin");
+                else if (result.Role.Equals("UserManager", StringComparison.OrdinalIgnoreCase))
+                    Navigation.NavigateTo("/homeusermanager");
+                else
+                    Navigation.NavigateTo("/homeuser");
+            }
         }
         else
         {
-            mensagem = "Credenciais inválidas.";
+            message = "Credenciais inválidas.";
         }
     }
 
     public class LoginRequest
     {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
     }
 
     public class LoginResponse
     {
-        public string Token { get; set; } = string.Empty;
+        public string Token { get; set; } = "";
+        public string Role { get; set; } = "";
     }
 }

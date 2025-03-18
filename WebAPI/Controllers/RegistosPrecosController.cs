@@ -1,7 +1,8 @@
-﻿using WebAPI.Context;
-using WebAPI.Entities;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using WebAPI.Context;
+using WebAPI.Entities;
 
 namespace WebAPI.Controllers
 {
@@ -41,15 +42,20 @@ namespace WebAPI.Controllers
             return registo;
         }
 
+        // Criação de registo de preço – usuário autenticado
         [HttpPost]
+        [Authorize]
         public async Task<ActionResult<RegistosPreco>> Create(RegistosPreco registo)
         {
+            registo.DataRegisto = DateTime.UtcNow;
             _context.RegistosPrecos.Add(registo);
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetById), new { id = registo.RegistoPrecoId }, registo);
         }
 
+        // Atualização de preço – usuário autenticado
         [HttpPut("{id}")]
+        [Authorize]
         public async Task<IActionResult> Update(int id, RegistosPreco registo)
         {
             if (id != registo.RegistoPrecoId) return BadRequest();
@@ -61,13 +67,14 @@ namespace WebAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!Exists(id)) return NotFound();
-                else throw;
+                if (!_context.RegistosPrecos.Any(e => e.RegistoPrecoId == id)) return NotFound();
+                throw;
             }
             return NoContent();
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
             var registo = await _context.RegistosPrecos.FindAsync(id);
@@ -76,11 +83,6 @@ namespace WebAPI.Controllers
             _context.RegistosPrecos.Remove(registo);
             await _context.SaveChangesAsync();
             return NoContent();
-        }
-
-        private bool Exists(int id)
-        {
-            return _context.RegistosPrecos.Any(e => e.RegistoPrecoId == id);
         }
     }
 }

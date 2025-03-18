@@ -11,7 +11,6 @@
         public string? Cargo { get; set; }
         public DateTime DataCriacao { get; set; }
         public int? TipoUtilizadorId { get; set; }
-
         public TipoUtilizador? TipoUtilizador { get; set; }
     }
 }

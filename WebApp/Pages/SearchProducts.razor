@@ -1,0 +1,148 @@
+@page "/searchproducts"
+@inject HttpClient Http
+
+<h3>Pesquisar Produtos</h3>
+
+<button class="btn btn-primary mb-3" @onclick="ToggleFilters">
+    Filtros
+</button>
+
+@if (showFilters)
+{
+    <div class="advanced-filters card p-3 mb-3">
+        <div class="form-check">
+            <InputCheckbox @bind-Value="useName" class="form-check-input" id="chkName" />
+            <label class="form-check-label" for="chkName">Nome</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox @bind-Value="useCategory" class="form-check-input" id="chkCategory" />
+            <label class="form-check-label" for="chkCategory">Categoria</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox @bind-Value="useStore" class="form-check-input" id="chkStore" />
+            <label class="form-check-label" for="chkStore">Loja</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox @bind-Value="useDate" class="form-check-input" id="chkDate" />
+            <label class="form-check-label" for="chkDate">Data</label>
+        </div>
+    </div>
+}
+
+@if (useName)
+{
+    <div class="mb-3">
+        <label>Nome:</label>
+        <InputText class="form-control" @bind-Value="searchCriteria.Name" />
+    </div>
+}
+@if (useCategory)
+{
+    <div class="mb-3">
+        <label>ID da Categoria:</label>
+        <InputNumber class="form-control" @bind-Value="searchCriteria.CategoryId" />
+    </div>
+}
+@if (useStore)
+{
+    <div class="mb-3">
+        <label>Nome da Loja:</label>
+        <InputText class="form-control" @bind-Value="searchCriteria.Store" />
+    </div>
+}
+@if (useDate)
+{
+    <div class="mb-3">
+        <label>Data (a partir de):</label>
+        <InputDate class="form-control" @bind-Value="searchCriteria.DateFrom" />
+    </div>
+}
+
+<button class="btn btn-secondary" @onclick="HandleSearch">Pesquisar</button>
+
+@if (products == null)
+{
+    <p>Realize a pesquisa.</p>
+}
+else if (!products.Any())
+{
+    <p>Nenhum produto encontrado.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Marca</th>
+                <th>Categoria</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var prod in products)
+            {
+                <tr>
+                    <td>@prod.ProdutoId</td>
+                    <td>@prod.Nome</td>
+                    <td>@prod.Marca</td>
+                    <td>@prod.Categoria?.Nome</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool showFilters;
+    private bool useName;
+    private bool useCategory;
+    private bool useStore;
+    private bool useDate;
+
+    private List<Produto> products = new List<Produto>();
+    private SearchCriteria searchCriteria = new SearchCriteria();
+
+    private void ToggleFilters() => showFilters = !showFilters;
+
+    private async Task HandleSearch()
+    {
+        var query = new List<string>();
+        if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
+            query.Add($"name={searchCriteria.Name}");
+        if (useCategory && searchCriteria.CategoryId.HasValue)
+            query.Add($"categoryId={searchCriteria.CategoryId.Value}");
+        if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
+            query.Add($"store={searchCriteria.Store}");
+        if (useDate && searchCriteria.DateFrom.HasValue)
+            query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
+
+        var queryString = string.Join("&", query);
+
+        // Evita o warning, garantindo que products não fique nulo
+        products = await Http.GetFromJsonAsync<List<Produto>>($"api/Produtos/search?{queryString}") 
+                    ?? new List<Produto>();
+    }
+
+    public class SearchCriteria
+    {
+        public string Name { get; set; } = "";
+        public int? CategoryId { get; set; }
+        public string Store { get; set; } = "";
+        public DateTime? DateFrom { get; set; }
+    }
+
+    public class Produto
+    {
+        public int ProdutoId { get; set; }
+        public string Nome { get; set; } = "";
+        public string Marca { get; set; } = "";
+        public Categoria? Categoria { get; set; }
+    }
+
+    public class Categoria
+    {
+        public int CategoriaId { get; set; }
+        public string Nome { get; set; } = "";
+    }
+}

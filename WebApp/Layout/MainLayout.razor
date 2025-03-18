@@ -1,12 +1,43 @@
 ﻿@inherits LayoutComponentBase
+@inject WebApp.Services.AuthService AuthService
+@inject NavigationManager Navigation
+
 <div class="page">
     <div class="sidebar">
-        <NavMenu/>
+        @if (AuthService.IsLoggedIn)
+        {
+            @if (string.Equals(AuthService.Role, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                <NavMenuAdmin />
+            }
+            else if (string.Equals(AuthService.Role, "USER_MANAGER", StringComparison.OrdinalIgnoreCase))
+            {
+                <NavMenuManager />
+            }
+            else
+            {
+                <NavMenuUser />
+            }
+        }
+        else
+        {
+            <!-- Se não estiver logado, exibe NavMenuUser básico ou nenhum menu -->
+            <NavMenuUser />
+        }
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4 d-flex align-items-center justify-content-end">
+            @if (AuthService.IsLoggedIn)
+            {
+                <span class="welcome-text me-3">Bem-vindo, @AuthService.UserName!</span>
+                <button class="btn btn-outline-secondary" @onclick="HandleLogout">Logout</button>
+            }
+            else
+            {
+                <button class="btn btn-outline-primary me-2" @onclick="GoLogin">Login</button>
+                <button class="btn btn-outline-success" @onclick="GoRegister">Registar</button>
+            }
         </div>
 
         <article class="content px-4">
@@ -14,3 +45,14 @@
         </article>
     </main>
 </div>
+
+@code {
+    private void HandleLogout()
+    {
+        AuthService.Clear();
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin() => Navigation.NavigateTo("/login");
+    private void GoRegister() => Navigation.NavigateTo("/register");
+}

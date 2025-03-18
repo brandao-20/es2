@@ -1,0 +1,57 @@
+@page "/register"
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Registar Conta</PageTitle>
+<h3>Registar Nova Conta</h3>
+
+<EditForm Model="newUser" OnValidSubmit="HandleRegister">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3">
+        <label>Username:</label>
+        <InputText class="form-control" @bind-Value="newUser.Username" />
+    </div>
+    <div class="mb-3">
+        <label>Email:</label>
+        <InputText type="email" class="form-control" @bind-Value="newUser.Email" />
+    </div>
+    <div class="mb-3">
+        <label>Password:</label>
+        <InputText type="password" class="form-control" @bind-Value="newUser.Password" />
+    </div>
+    <button type="submit" class="btn btn-primary">Registar</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@code {
+    private User newUser = new();
+    private string message = "";
+
+    private async Task HandleRegister()
+    {
+        var response = await Http.PostAsJsonAsync("api/Utilizadores/register", newUser);
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Conta criada com sucesso!";
+            Navigation.NavigateTo("/login");
+        }
+        else
+        {
+            message = "Erro no registo.";
+        }
+    }
+
+    public class User
+    {
+        public int UtilizadorId { get; set; }
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

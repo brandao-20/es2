@@ -1,0 +1,69 @@
+@page "/relatorioprodutos"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<PageTitle>Relatório de Produtos</PageTitle>
+<h3>Relatório de Produtos</h3>
+
+@if (produtosReport == null)
+{
+    <p>Carregando relatório...</p>
+}
+else
+{
+    @foreach (var produto in produtosReport)
+    {
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>@produto.Nome</strong> - Categoria: @produto.Categoria
+            </div>
+            <div class="card-body">
+                <p><strong>Lojas e Últimos Preços:</strong></p>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Loja</th>
+                            <th>Último Preço</th>
+                            <th>Data do Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var loja in produto.Lojas)
+                        {
+                            <tr>
+                                <td>@loja.LojaNome</td>
+                                <td>@loja.LatestPrice</td>
+                                <td>@loja.LatestDate.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<ProdutoReportDto>? produtosReport;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        produtosReport = await Http.GetFromJsonAsync<List<ProdutoReportDto>>("api/Relatorios/produtos");
+    }
+    
+    public class ProdutoReportDto
+    {
+        public int ProdutoId { get; set; }
+        public string Nome { get; set; } = string.Empty;
+        public string? Categoria { get; set; }
+        public List<LojaPriceDto> Lojas { get; set; } = new();
+    }
+    
+    public class LojaPriceDto
+    {
+        public int LojaId { get; set; }
+        public string? LojaNome { get; set; }
+        public decimal LatestPrice { get; set; }
+        public DateTime LatestDate { get; set; }
+    }
+}

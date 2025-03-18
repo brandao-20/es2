@@ -1,11 +1,13 @@
-﻿using WebAPI.Context;
-using WebAPI.Entities;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+﻿using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using WebAPI.Context;
+using WebAPI.Entities;
+using WebAPI.Helpers;
 
 namespace WebAPI.Controllers
 {
@@ -25,17 +27,17 @@ namespace WebAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            // Verifica o utilizador (para simplificar, senha em texto puro – em produção use hash)
             var user = await _context.Utilizadores
                 .Include(u => u.TipoUtilizador)
-                .FirstOrDefaultAsync(u => u.Username == request.Username && u.Password == request.Password);
-            if (user == null)
+                .FirstOrDefaultAsync(u => u.Username == request.Username);
+
+            if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.Password))
             {
                 return Unauthorized("Credenciais inválidas");
             }
 
             var token = GenerateJwtToken(user);
-            return Ok(new { token });
+            return Ok(new { token, role = user.TipoUtilizador?.Tipo });
         }
 
         private string GenerateJwtToken(Utilizador user)
@@ -49,7 +51,7 @@ namespace WebAPI.Controllers
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Username),
                 new Claim("utilizadorId", user.UtilizadorId.ToString()),
-                new Claim("tipo", user.TipoUtilizador?.Tipo ?? "User"),
+                new Claim(ClaimTypes.Role, user.TipoUtilizador?.Tipo ?? "User"),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
