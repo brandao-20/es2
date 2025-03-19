@@ -1,0 +1,66 @@
+@page "/chat"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+
+<h3>Chat (Admin → Usuário)</h3>
+
+<div>
+    <label>ID do Usuário Destino:</label>
+    <InputText @bind-Value="targetUserId" placeholder="Digite o ID do usuário" />
+</div>
+<div>
+    <label>Mensagem:</label>
+    <InputText @bind-Value="messageToSend" placeholder="Digite sua mensagem" />
+</div>
+<button class="btn btn-primary" @onclick="SendMessage">Enviar Mensagem</button>
+
+<hr />
+<h4>Mensagens Recebidas:</h4>
+<ul>
+    @foreach (var msg in receivedMessages)
+    {
+        <li><strong>@msg.Sender:</strong> @msg.Content</li>
+    }
+</ul>
+
+@code {
+    private HubConnection hubConnection;
+    private string targetUserId;
+    private string messageToSend;
+    private List<(string Sender, string Content)> receivedMessages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (sender, message) =>
+        {
+            receivedMessages.Add((sender, message));
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(targetUserId) && !string.IsNullOrWhiteSpace(messageToSend))
+        {
+            await hubConnection.InvokeAsync("SendMessageToUser", targetUserId, messageToSend);
+            messageToSend = string.Empty;
+        }
+    }
+
+    public bool IsConnected => hubConnection.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

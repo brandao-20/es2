@@ -1,19 +1,58 @@
 @page "/"
-@inject NavigationManager Navigation
+@using System.Web
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@inject NavigationManager NavManager
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject WebApp.Services.AuthService AuthService
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p style="color: green">@message</p>
+}
 
 @if (AuthService.IsLoggedIn)
 {
-    <RedirectToHome />
+    RedirectToHome();
 }
 else
 {
     <h1>Bem-vindo à Plataforma de Comparação de Preços!</h1>
-    <p>Aqui você pode pesquisar produtos sem login, ou efetuar login para mais funcionalidades.</p>}
+    <p>Aqui você pode pesquisar produtos sem login, ou efetuar login para mais funcionalidades.</p>
+}
 
 @code {
-    protected override void OnInitialized()
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
     {
+        // Verifica se a URL contém ?googleToken=xxx
+        var uri = new Uri(NavManager.Uri);
+        var query = HttpUtility.ParseQueryString(uri.Query);
+        var googleToken = query.Get("googleToken");
+
+        if (!string.IsNullOrEmpty(googleToken))
+        {
+            // Salva no localStorage
+            await LocalStorage.SetItemAsync("authToken", googleToken);
+
+            // Ajusta o AuthService
+            AuthService.Token = googleToken;
+
+            // Decodifica o token para extrair as claims
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(googleToken);
+
+            // Pega o 'Name' e a 'Role' (se houver)
+            var userName = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? "GoogleUser";
+            var role = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "USER";
+
+            AuthService.UserName = userName;  // Ex.: "Gabriel Brandão"
+            AuthService.Role = role;
+
+            message = "Autenticado via Google!";
+        }
+
         if (AuthService.IsLoggedIn)
         {
             RedirectToHome();
@@ -23,10 +62,10 @@ else
     private void RedirectToHome()
     {
         if (AuthService.IsAdmin)
-            Navigation.NavigateTo("/homeadmin");
+            NavManager.NavigateTo("/homeadmin");
         else if (AuthService.IsManager)
-            Navigation.NavigateTo("/homeusermanager");
+            NavManager.NavigateTo("/homeusermanager");
         else
-            Navigation.NavigateTo("/homeuser");
+            NavManager.NavigateTo("/homeuser");
     }
 }

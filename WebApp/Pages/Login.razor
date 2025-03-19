@@ -2,6 +2,7 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Login</PageTitle>
@@ -20,6 +21,9 @@
     </div>
     <button type="submit" class="btn btn-primary">Login</button>
 </EditForm>
+
+<hr />
+<button class="btn btn-danger" @onclick="LoginWithGoogle">Login com Google</button>
 
 @if (!string.IsNullOrEmpty(message))
 {
@@ -41,6 +45,8 @@
                 AuthService.UserName = loginRequest.Username;
                 AuthService.Role = result.Role;
                 AuthService.Token = result.Token;
+                // Salva o token no localStorage
+                await LocalStorage.SetItemAsync("authToken", result.Token);
                 // Redireciona conforme o papel
                 if (result.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
                     Navigation.NavigateTo("/homeadmin");
@@ -54,6 +60,13 @@
         {
             message = "Credenciais inválidas.";
         }
+    }
+
+    private void LoginWithGoogle()
+    {
+        // Redireciona para o endpoint de login externo do Google.
+        // O URL de callback deve estar configurado no backend.
+        Navigation.NavigateTo("http://localhost:5000/api/ExternalLogin/Google", forceLoad: true);
     }
 
     public class LoginRequest

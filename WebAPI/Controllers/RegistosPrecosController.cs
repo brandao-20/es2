@@ -84,5 +84,21 @@ namespace WebAPI.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+
+        // Novo endpoint para confirmação de preço, atualizando a credibilidade
+        [HttpPost("confirm/{id}")]
+        [Authorize]
+        public async Task<IActionResult> ConfirmPrice(int id)
+        {
+            var registo = await _context.RegistosPrecos.FindAsync(id);
+            if (registo == null) return NotFound();
+
+            // Exemplo simples: incrementar a credibilidade em 10 pontos (até máximo 100)
+            registo.Credibilidade = Math.Min(registo.Credibilidade + 10, 100);
+            _context.Entry(registo).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Preço confirmado com sucesso", credibilidade = registo.Credibilidade });
+        }
     }
 }

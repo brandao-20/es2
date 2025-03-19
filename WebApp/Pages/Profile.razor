@@ -1,0 +1,51 @@
+@page "/profile"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<h3>Perfil do Utilizador</h3>
+<p><strong>Nome de Utilizador:</strong> @AuthService.UserName</p>
+<p><strong>Papel (Role):</strong> @AuthService.Role</p>
+<!-- Se desejar, poderíamos buscar mais dados do servidor, como Email, Telefone, etc. -->
+
+<button class="btn btn-warning" @onclick="AskDelete">Eliminar Conta</button>
+
+@if (showConfirm)
+{
+    <div class="alert alert-danger mt-3">
+        <p>Tem certeza de que deseja eliminar a conta? Esta ação é irreversível.</p>
+        <button class="btn btn-danger me-2" @onclick="DeleteAccount">Sim, eliminar</button>
+        <button class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@code {
+    private bool showConfirm;
+    private string message;
+
+    private void AskDelete() => showConfirm = true;
+    private void CancelDelete() => showConfirm = false;
+
+    private async Task DeleteAccount()
+    {
+        var response = await Http.DeleteAsync("api/Utilizadores/me");
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Conta removida com sucesso.";
+            // Limpa dados de autenticação local
+            AuthService.Clear();
+            // Redireciona para home (ou login)
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            message = "Ocorreu um erro ao remover a conta.";
+        }
+        showConfirm = false;
+    }
+}

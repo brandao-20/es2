@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using WebAPI.Context;
 using WebAPI.Entities;
 using WebAPI.Helpers;
@@ -17,7 +19,7 @@ namespace WebAPI.Controllers
             _context = context;
         }
 
-        // Registro de conta aberto a todos – primeiro usuário torna-se ADMIN
+        // Endpoint de registro já existente...
         [HttpPost("register")]
         public async Task<ActionResult<Utilizador>> Register(Utilizador utilizador)
         {
@@ -59,7 +61,6 @@ namespace WebAPI.Controllers
             return user;
         }
 
-        // Outros métodos (GetAll, Update, Delete) mantidos conforme a versão anterior.
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Utilizador>>> GetAll()
         {
@@ -92,9 +93,30 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> Delete(int id)
         {
             var user = await _context.Utilizadores.FindAsync(id);
+            if (user == null) return NotFound();
+
+            _context.Utilizadores.Remove(user);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // Novo endpoint: usuário removendo sua própria conta
+        [HttpDelete("me")]
+        [Authorize]
+        public async Task<IActionResult> DeleteMyAccount()
+        {
+            // Obter o ID do usuário a partir dos claims do token
+            var userIdClaim = User.FindFirst("utilizadorId");
+            if (userIdClaim == null) return Unauthorized("Usuário não identificado.");
+
+            if (!int.TryParse(userIdClaim.Value, out int userId))
+                return BadRequest("ID do usuário inválido.");
+
+            var user = await _context.Utilizadores.FindAsync(userId);
             if (user == null) return NotFound();
 
             _context.Utilizadores.Remove(user);

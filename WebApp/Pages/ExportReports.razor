@@ -1,0 +1,25 @@
+@page "/exportreports"
+@inject HttpClient Http
+
+<h3>Exportar Relatórios</h3>
+<div>
+    <button class="btn btn-primary" @onclick="ExportCsv">Exportar Lojas em CSV</button>
+    <button class="btn btn-secondary" @onclick="ExportPdf">Exportar Lojas em PDF</button>
+</div>
+
+@code {
+    private async Task ExportCsv()
+    {
+        var csvData = await Http.GetByteArrayAsync("api/Export/lojas/csv");
+        await JS.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.csv", "text/csv", csvData);
+    }
+
+    private async Task ExportPdf()
+    {
+        var pdfData = await Http.GetByteArrayAsync("api/Export/lojas/pdf");
+        await JS.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.pdf", "application/pdf", pdfData);
+    }
+
+    [Inject]
+    public IJSRuntime JS { get; set; }
+}

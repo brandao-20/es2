@@ -24,7 +24,7 @@
         </div>
         <div class="form-check">
             <InputCheckbox @bind-Value="useDate" class="form-check-input" id="chkDate" />
-            <label class="form-check-label" for="chkDate">Data</label>
+            <label class="form-check-label" for="chkDate">Data (a partir de)</label>
         </div>
     </div>
 }
@@ -100,7 +100,7 @@ else
     private bool useStore;
     private bool useDate;
 
-    private List<Produto> products = new List<Produto>();
+    private List<Produto> products = new();
     private SearchCriteria searchCriteria = new SearchCriteria();
 
     private void ToggleFilters() => showFilters = !showFilters;
@@ -118,8 +118,6 @@ else
             query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
 
         var queryString = string.Join("&", query);
-
-        // Evita o warning, garantindo que products não fique nulo
         products = await Http.GetFromJsonAsync<List<Produto>>($"api/Produtos/search?{queryString}") 
                     ?? new List<Produto>();
     }

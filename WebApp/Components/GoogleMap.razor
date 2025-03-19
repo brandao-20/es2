@@ -1,0 +1,20 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div id="@MapElementId" style="width:100%; height:400px;"></div>
+
+@code {
+    [Parameter]
+    public decimal Latitude { get; set; }
+    [Parameter]
+    public decimal Longitude { get; set; }
+    private string MapElementId = "map_" + Guid.NewGuid().ToString("N");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("mapsInterop.initMapaLoja", Latitude, Longitude, MapElementId);
+        }
+    }
+}
