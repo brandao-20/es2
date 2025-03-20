@@ -52,7 +52,7 @@ namespace WebAPI.Controllers
             return CreatedAtAction(nameof(GetById), new { id = utilizador.UtilizadorId }, utilizador);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<ActionResult<Utilizador>> GetById(int id)
         {
             var user = await _context.Utilizadores.Include(u => u.TipoUtilizador)
@@ -67,7 +67,7 @@ namespace WebAPI.Controllers
             return await _context.Utilizadores.Include(u => u.TipoUtilizador).ToListAsync();
         }
 
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, Utilizador utilizador)
         {
             if (id != utilizador.UtilizadorId) return BadRequest();
@@ -92,10 +92,16 @@ namespace WebAPI.Controllers
             return NoContent();
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> Delete(int id)
         {
+            var userIdClaim = User.FindFirst("utilizadorId");
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int currentUserId) && id == currentUserId)
+            {
+                return BadRequest("Não é possível remover a si próprio por este endpoint.");
+            }
+
             var user = await _context.Utilizadores.FindAsync(id);
             if (user == null) return NotFound();
 
@@ -109,7 +115,6 @@ namespace WebAPI.Controllers
         [Authorize]
         public async Task<IActionResult> DeleteMyAccount()
         {
-            // Obter o ID do usuário a partir dos claims do token
             var userIdClaim = User.FindFirst("utilizadorId");
             if (userIdClaim == null) return Unauthorized("Usuário não identificado.");
 
@@ -156,7 +161,7 @@ namespace WebAPI.Controllers
         }
 
         // (2) AdminGetUser: retorna DTO para edição
-        [HttpGet("adminget/{id}")]
+        [HttpGet("adminget/{id:int}")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<ActionResult<UserDto>> AdminGetUser(int id)
         {
@@ -171,14 +176,14 @@ namespace WebAPI.Controllers
                 UtilizadorId = user.UtilizadorId,
                 Username = user.Username,
                 Email = user.Email,
-                // Normalizar "ADMIN" -> "Admin", etc. se quiser exibir no front
+                // Normalizar "ADMIN" -> "Admin", etc.
                 Tipo = NormalizeRoleFromDb(roleDb)
             };
             return dto;
         }
 
         // (3) AdminEditUser: edita username, email, cargo e opcionalmente password
-        [HttpPut("adminedit/{id}")]
+        [HttpPut("adminedit/{id:int}")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> AdminEditUser(int id, UserDto dto)
         {
@@ -188,13 +193,11 @@ namespace WebAPI.Controllers
             user.Username = dto.Username;
             user.Email = dto.Email;
 
-            // Se enviou nova password
             if (!string.IsNullOrEmpty(dto.NewPassword))
             {
                 user.Password = PasswordHelper.HashPassword(dto.NewPassword);
             }
 
-            // Converter "Admin"/"UserManager"/"User" -> "ADMIN"/"USER_MANAGER"/"USER"
             var roleDb = dto.Tipo.ToUpper();
             var tipoEntity = await _context.TipoUtilizadors.FirstOrDefaultAsync(t => t.Tipo == roleDb);
             if (tipoEntity == null)

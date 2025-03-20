@@ -26,9 +26,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Verifica se a URL contém ?googleToken=xxx
         var uri = new Uri(NavManager.Uri);
-        var query = HttpUtility.ParseQueryString(uri.Query);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
         var googleToken = query.Get("googleToken");
 
         if (!string.IsNullOrEmpty(googleToken))
@@ -39,16 +38,22 @@ else
             // Ajusta o AuthService
             AuthService.Token = googleToken;
 
-            // Decodifica o token para extrair as claims
+            // Decodifica o token
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(googleToken);
 
-            // Pega o 'Name' e a 'Role' (se houver)
+            // Extrai Name e Role
             var userName = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? "GoogleUser";
             var role = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "USER";
-
-            AuthService.UserName = userName;  // Ex.: "Gabriel Brandão"
+            AuthService.UserName = userName;
             AuthService.Role = role;
+
+            // Extrai o "utilizadorId"
+            var userIdClaim = jwt.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value;
+            if (int.TryParse(userIdClaim, out int parsedId))
+            {
+                AuthService.UserId = parsedId;
+            }
 
             message = "Autenticado via Google!";
         }

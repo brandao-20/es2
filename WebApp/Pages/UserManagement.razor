@@ -45,8 +45,17 @@ else
                         <td>@u.Email</td>
                         <td>@u.TipoUtilizador?.Tipo</td>
                         <td>
-                            <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(u.UtilizadorId))">Editar</button>
-                            <button class="btn btn-sm btn-danger" @onclick="@(() => RemoverConta(u.UtilizadorId))">Remover</button>
+                            <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(u.UtilizadorId))">
+                                Editar
+                            </button>
+
+                            @* Somente renderizar o botão Remover se u.UtilizadorId != AuthService.UserId *@
+                            @if (u.UtilizadorId != AuthService.UserId)
+                            {
+                                <button class="btn btn-sm btn-danger" @onclick="@(() => RemoverConta(u.UtilizadorId))">
+                                    Remover
+                                </button>
+                            }
                         </td>
                     </tr>
                 }
