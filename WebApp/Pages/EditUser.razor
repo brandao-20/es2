@@ -1,0 +1,100 @@
+@page "/users/edit/{id:int}"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<h3>Editar Utilizador</h3>
+
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para editar utilizadores.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else
+{
+    @if (usuario == null)
+    {
+        <p>Carregando...</p>
+    }
+    else
+    {
+        <EditForm Model="usuario" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label>Username:</label>
+                <InputText class="form-control" @bind-Value="usuario.Username" />
+            </div>
+            <div class="mb-3">
+                <label>Email:</label>
+                <InputText class="form-control" @bind-Value="usuario.Email" />
+            </div>
+            <!-- Se quiser permitir mudar a password, exibir um campo para nova password -->
+            <div class="mb-3">
+                <label>Nova Password (opcional):</label>
+                <InputText type="password" class="form-control" @bind-Value="novaPassword" />
+            </div>
+
+            <div class="mb-3">
+                <label>Cargo (TipoUtilizador):</label>
+                <select class="form-select" @bind="usuario.Tipo">
+                    <option value="Admin">Admin</option>
+                    <option value="UserManager">UserManager</option>
+                    <option value="User">User</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </EditForm>
+    }
+}
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <p>@mensagem</p>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private UserDto? usuario;
+    private string? mensagem;
+    private string? novaPassword;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAdmin || AuthService.IsManager)
+        {
+            // Carrega o user
+            usuario = await Http.GetFromJsonAsync<UserDto>($"api/Utilizadores/adminget/{id}");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (usuario == null) return;
+        usuario.NewPassword = novaPassword; // se existir
+
+        var response = await Http.PutAsJsonAsync($"api/Utilizadores/adminedit/{id}", usuario);
+        if (response.IsSuccessStatusCode)
+        {
+            mensagem = "Utilizador atualizado com sucesso!";
+            Navigation.NavigateTo("/users");
+        }
+        else
+        {
+            mensagem = "Erro ao atualizar utilizador.";
+        }
+    }
+
+    private void Voltar() => Navigation.NavigateTo("/users");
+
+    public class UserDto
+    {
+        public int UtilizadorId { get; set; }
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Tipo { get; set; } = "User"; // Admin, UserManager, User
+        public string? NewPassword { get; set; }
+    }
+}

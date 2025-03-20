@@ -1,6 +1,9 @@
 ﻿@page "/produtos"
 @using WebApp.Models
 @inject HttpClient Http
+@inject WebApp.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Lista de Produtos</PageTitle>
 <h3>Lista de Produtos</h3>
@@ -15,6 +18,14 @@ else if (!produtos.Any())
 }
 else
 {
+    <div class="mb-3">
+        @* Se o usuário for Admin ou UserManager, exibimos o botão "Criar Produto" *@
+        @if (AuthService.IsAdmin || AuthService.IsManager)
+        {
+            <button class="btn btn-primary" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
+        }
+    </div>
+    
     <table class="table">
         <thead>
             <tr>
@@ -22,6 +33,10 @@ else
                 <th>Nome</th>
                 <th>Marca</th>
                 <th>Categoria</th>
+                @if (AuthService.IsAdmin || AuthService.IsManager)
+                {
+                    <th>Ações</th>
+                }
             </tr>
         </thead>
         <tbody>
@@ -32,6 +47,13 @@ else
                     <td>@prod.Nome</td>
                     <td>@prod.Marca</td>
                     <td>@prod.Categoria?.Nome</td>
+                    @if (AuthService.IsAdmin || AuthService.IsManager)
+                    {
+                        <td>
+                            <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(prod.ProdutoId))">Editar</button>
+                            <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(prod.ProdutoId))">Excluir</button>
+                        </td>
+                    }
                 </tr>
             }
         </tbody>
@@ -40,9 +62,42 @@ else
 
 @code {
     private List<Produto>? produtos;
-    
+
     protected override async Task OnInitializedAsync()
     {
+        await CarregarProdutos();
+    }
+
+    private async Task CarregarProdutos()
+    {
         produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
+    }
+
+    private void IrParaCriarProduto()
+    {
+        Navigation.NavigateTo("/produtos/novo");
+    }
+
+    private void Editar(int produtoId)
+    {
+        Navigation.NavigateTo($"/produtos/editar/{produtoId}");
+    }
+
+    private async Task Excluir(int produtoId)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"Tem certeza que deseja excluir o produto {produtoId}?");
+        if (!confirmar) return;
+
+        // Chama DELETE na API
+        var response = await Http.DeleteAsync($"api/Produtos/{produtoId}");
+        if (response.IsSuccessStatusCode)
+        {
+            // Recarrega a lista
+            await CarregarProdutos();
+        }
+        else
+        {
+            // Exibir alguma mensagem de erro
+        }
     }
 }

@@ -1,0 +1,84 @@
+@page "/produtos/editar/{id:int}"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<PageTitle>Editar Produto</PageTitle>
+
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para editar produtos.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else
+{
+    <h3>Editar Produto</h3>
+
+    @if (produto == null)
+    {
+        <p>Carregando produto...</p>
+    }
+    else
+    {
+        <EditForm Model="produto" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="mb-3">
+                <label>Nome:</label>
+                <InputText class="form-control" @bind-Value="produto.Nome" />
+            </div>
+            <div class="mb-3">
+                <label>Marca:</label>
+                <InputText class="form-control" @bind-Value="produto.Marca" />
+            </div>
+            <div class="mb-3">
+                <label>Descrição:</label>
+                <InputText class="form-control" @bind-Value="produto.Descricao" />
+            </div>
+            <div class="mb-3">
+                <label>ID da Categoria:</label>
+                <InputNumber class="form-control" @bind-Value="produto.CategoriaId" />
+            </div>
+            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+        </EditForm>
+    }
+}
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <p>@mensagem</p>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private Produto? produto;
+    private string? mensagem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAdmin || AuthService.IsManager)
+        {
+            // Carrega o produto
+            produto = await Http.GetFromJsonAsync<Produto>($"api/Produtos/{id}");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (produto == null) return;
+
+        var response = await Http.PutAsJsonAsync($"api/Produtos/{id}", produto);
+        if (response.IsSuccessStatusCode)
+        {
+            mensagem = "Produto atualizado com sucesso!";
+            Navigation.NavigateTo("/produtos");
+        }
+        else
+        {
+            mensagem = "Erro ao atualizar produto.";
+        }
+    }
+
+    private void Voltar() => Navigation.NavigateTo("/produtos");
+}

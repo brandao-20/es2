@@ -15,6 +15,8 @@ public partial class Utilizador
 
     public string? GoogleToken { get; set; }
 
+    public string? GoogleId { get; set; }
+
     public string? Telefone { get; set; }
 
     public string? Cargo { get; set; }

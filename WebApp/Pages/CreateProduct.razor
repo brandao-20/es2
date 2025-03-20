@@ -1,32 +1,42 @@
-﻿@page "/criarproduto"
+﻿@page "/produtos/novo"
 @using WebApp.Models
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Criar Produto</PageTitle>
-<h3>Criar Produto</h3>
 
-<EditForm Model="novoProduto" OnValidSubmit="HandleSubmit">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="mb-3">
-        <label>Nome:</label>
-        <InputText class="form-control" @bind-Value="novoProduto.Nome" />
-    </div>
-    <div class="mb-3">
-        <label>Marca:</label>
-        <InputText class="form-control" @bind-Value="novoProduto.Marca" />
-    </div>
-    <div class="mb-3">
-        <label>Descrição:</label>
-        <InputText class="form-control" @bind-Value="novoProduto.Descricao" />
-    </div>
-    <div class="mb-3">
-        <label>ID da Categoria:</label>
-        <InputNumber class="form-control" @bind-Value="novoProduto.CategoriaId" />
-    </div>
-    <button type="submit" class="btn btn-primary">Criar Produto</button>
-</EditForm>
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para criar produtos.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else
+{
+    <h3>Criar Produto</h3>
+
+    <EditForm Model="novoProduto" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="mb-3">
+            <label>Nome:</label>
+            <InputText class="form-control" @bind-Value="novoProduto.Nome" />
+        </div>
+        <div class="mb-3">
+            <label>Marca:</label>
+            <InputText class="form-control" @bind-Value="novoProduto.Marca" />
+        </div>
+        <div class="mb-3">
+            <label>Descrição:</label>
+            <InputText class="form-control" @bind-Value="novoProduto.Descricao" />
+        </div>
+        <div class="mb-3">
+            <label>ID da Categoria:</label>
+            <InputNumber class="form-control" @bind-Value="novoProduto.CategoriaId" />
+        </div>
+        <button type="submit" class="btn btn-primary">Criar Produto</button>
+    </EditForm>
+}
 
 @if (!string.IsNullOrEmpty(mensagem))
 {
@@ -36,7 +46,7 @@
 @code {
     private Produto novoProduto = new();
     private string? mensagem;
-    
+
     private async Task HandleSubmit()
     {
         var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
@@ -50,4 +60,6 @@
             mensagem = "Erro ao criar produto.";
         }
     }
+
+    private void Voltar() => Navigation.NavigateTo("/produtos");
 }

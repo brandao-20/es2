@@ -1,11 +1,30 @@
 @page "/reports"
 @inject NavigationManager Navigation
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
 
 <h2>Relatórios</h2>
 <p>Aqui você poderá acessar relatórios gerais, específicos, etc.</p>
 
 <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
 
+<div class="mt-3">
+    <button class="btn btn-primary" @onclick="ExportarLojasCsv">Exportar Lojas em CSV</button>
+    <button class="btn btn-danger" @onclick="ExportarLojasPdf">Exportar Lojas em PDF</button>
+</div>
+
 @code {
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
+
+    private async Task ExportarLojasCsv()
+    {
+        var csvData = await Http.GetByteArrayAsync("api/Export/lojas/csv");
+        await JSRuntime.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.csv", "text/csv", csvData);
+    }
+
+    private async Task ExportarLojasPdf()
+    {
+        var pdfData = await Http.GetByteArrayAsync("api/Export/lojas/pdf");
+        await JSRuntime.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.pdf", "application/pdf", pdfData);
+    }
 }

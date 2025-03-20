@@ -1,0 +1,77 @@
+@page "/users/new"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<h3>Criar Novo Utilizador</h3>
+
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para criar utilizadores.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else
+{
+    <EditForm Model="novoUser" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Username:</label>
+            <InputText class="form-control" @bind-Value="novoUser.Username" />
+        </div>
+        <div class="mb-3">
+            <label>Email:</label>
+            <InputText class="form-control" @bind-Value="novoUser.Email" />
+        </div>
+        <div class="mb-3">
+            <label>Password:</label>
+            <InputText type="password" class="form-control" @bind-Value="novoUser.Password" />
+        </div>
+
+        <div class="mb-3">
+            <label>Cargo (TipoUtilizador):</label>
+            <select class="form-select" @bind="novoUser.Tipo">
+                <option value="Admin">Admin</option>
+                <option value="UserManager">UserManager</option>
+                <option value="User">User</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Criar</button>
+    </EditForm>
+}
+
+@if (!string.IsNullOrEmpty(mensagem))
+{
+    <p>@mensagem</p>
+}
+
+@code {
+    private UserDto novoUser = new();
+    private string? mensagem;
+
+    private async Task HandleSubmit()
+    {
+        var response = await Http.PostAsJsonAsync("api/Utilizadores/admincreate", novoUser);
+        if (response.IsSuccessStatusCode)
+        {
+            mensagem = "Utilizador criado com sucesso!";
+            Navigation.NavigateTo("/users");
+        }
+        else
+        {
+            mensagem = "Erro ao criar utilizador.";
+        }
+    }
+
+    private void Voltar() => Navigation.NavigateTo("/users");
+
+    public class UserDto
+    {
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string Tipo { get; set; } = "User"; // Admin, UserManager, User
+    }
+}

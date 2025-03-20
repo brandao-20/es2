@@ -111,9 +111,7 @@ namespace WebAPI.Context
             {
                 entity.HasKey(e => e.UtilizadorId).HasName("Utilizadores_pkey");
                 entity.Property(e => e.Cargo).HasMaxLength(50);
-                entity.Property(e => e.DataCriacao)
-                    .HasDefaultValueSql("now()")
-                    .HasColumnType("timestamp without time zone");
+                entity.Property(e => e.DataCriacao);
                 entity.Property(e => e.Email).HasMaxLength(100);
                 entity.Property(e => e.GoogleToken).HasMaxLength(200);
                 entity.Property(e => e.Password).HasMaxLength(200);
