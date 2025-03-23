@@ -19,7 +19,6 @@ else if (!produtos.Any())
 else
 {
     <div class="mb-3">
-        @* Se o utilizador for Admin ou UserManager, exibimos o botão "Criar Produto" *@
         @if (AuthService.IsAdmin || AuthService.IsManager)
         {
             <button class="btn btn-primary" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
@@ -88,16 +87,14 @@ else
         bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"Tem certeza que deseja excluir o produto {produtoId}?");
         if (!confirmar) return;
 
-        // Chama DELETE na API
         var response = await Http.DeleteAsync($"api/Produtos/{produtoId}");
         if (response.IsSuccessStatusCode)
         {
-            // Recarrega a lista
             await CarregarProdutos();
         }
         else
         {
-            // Exibir alguma mensagem de erro
+            // Tratar erro conforme necessário
         }
     }
 }

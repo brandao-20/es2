@@ -1,35 +1,101 @@
 @page "/stores/new"
+@using WebApp.Models
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <h2>Adicionar Nova Loja</h2>
 
-<EditForm Model="newStore" OnValidSubmit="HandleSubmit">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="mb-3">
-        <label>Nome da Loja:</label>
-        <InputText class="form-control" @bind-Value="newStore.Name" />
-    </div>
-    <div class="mb-3">
-        <label>URL do Google Maps:</label>
-        <InputText type="url" class="form-control" @bind-Value="newStore.MapsUrl" placeholder="https://maps.google.com/..." />
-    </div>
-    <button type="submit" class="btn btn-primary">Salvar Loja</button>
-</EditForm>
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para criar lojas.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <EditForm Model="newStore" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Nome da Loja:</label>
+            <InputText class="form-control" @bind-Value="newStore.Nome" />
+        </div>
+        <div class="mb-3">
+            <label>Endereço:</label>
+            <InputText class="form-control" @bind-Value="newStore.Endereco" />
+        </div>
+
+        <!-- Alterna: usarMapa ou não -->
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" @bind-Value="usarMapa" id="chkMapa" />
+            <label class="form-check-label" for="chkMapa">Selecionar localização no mapa?</label>
+        </div>
+
+        @if (usarMapa)
+        {
+            <!-- Se usar o mapa, exibimos GoogleMap e escondemos inputs manuais -->
+            <div class="mb-3">
+                <label>Selecione a Localização no Mapa:</label>
+                <GoogleMap
+                    Latitude="@tempLatitude"
+                    Longitude="@tempLongitude"
+                    OnMapClick="HandleMapClick" />
+            </div>
+
+            <div class="alert alert-info">
+                Clique no mapa para mover o marcador e defina lat/lng.
+                <br />
+                Latitude: @newStore.Localizacao?.Latitude
+                <br />
+                Longitude: @newStore.Localizacao?.Longitude
+            </div>
+        }
+        else
+        {
+            <!-- Se não usar mapa, exibimos inputs manuais -->
+            <div class="mb-3">
+                <label>Latitude:</label>
+                <InputNumber class="form-control" @bind-Value="newStore.Localizacao.Latitude" />
+            </div>
+            <div class="mb-3">
+                <label>Longitude:</label>
+                <InputNumber class="form-control" @bind-Value="newStore.Localizacao.Longitude" />
+            </div>
+        }
+
+        <button type="submit" class="btn btn-primary">Guardar Loja</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
+    </EditForm>
+}
 
 @if (!string.IsNullOrEmpty(message))
 {
-    <p>@message</p>
+    <p style="color:red">@message</p>
 }
 
 @code {
-    private Store newStore = new Store();
+    // Model do front-end
+    private LojaModel newStore = new LojaModel();
     private string message = "";
+
+    // Por padrão, vamos usar o mapa
+    private bool usarMapa = true;
+
+    // Coordenadas iniciais do mapa
+    private decimal tempLatitude = 38.7223m;  // Lisboa
+    private decimal tempLongitude = -9.1393m;
+
+    protected override void OnInitialized()
+    {
+        newStore.Localizacao = new LocalizacaoModel();
+        // Se quiser setar defaults: newStore.Localizacao.Latitude = 38.7223m;
+    }
 
     private async Task HandleSubmit()
     {
-        var response = await Http.PostAsJsonAsync("api/stores", newStore);
+        // Envia JSON para /api/Lojas
+        var response = await Http.PostAsJsonAsync("api/Lojas", newStore);
         if (response.IsSuccessStatusCode)
         {
             message = "Loja criada com sucesso!";
@@ -37,13 +103,40 @@
         }
         else
         {
-            message = "Erro ao criar loja.";
+            var debug = await response.Content.ReadAsStringAsync();
+            message = $"Erro ao criar loja: {debug}";
         }
     }
 
-    public class Store
+    // Recebe coords do clique no mapa
+    private async Task HandleMapClick((decimal lat, decimal lng) coords)
     {
-        public string Name { get; set; } = string.Empty;
-        public string MapsUrl { get; set; } = string.Empty;
+        if (newStore.Localizacao == null)
+            newStore.Localizacao = new LocalizacaoModel();
+
+        newStore.Localizacao.Latitude = coords.lat;
+        newStore.Localizacao.Longitude = coords.lng;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/stores");
+
+    // Modelos
+    public class LojaModel
+    {
+        public int LojaId { get; set; }
+        public string Nome { get; set; } = "";
+        public string Endereco { get; set; } = "";
+
+        public int? LocalizacaoId { get; set; }
+        public LocalizacaoModel? Localizacao { get; set; }
+    }
+
+    public class LocalizacaoModel
+    {
+        public int LocalizacaoId { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+        public string? GoogleMapsUrl { get; set; }
     }
 }

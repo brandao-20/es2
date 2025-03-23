@@ -14,10 +14,10 @@
 else
 {
     <h3>Criar Produto</h3>
-
     <EditForm Model="novoProduto" OnValidSubmit="HandleSubmit">
         <DataAnnotationsValidator />
         <ValidationSummary />
+
         <div class="mb-3">
             <label>Nome:</label>
             <InputText class="form-control" @bind-Value="novoProduto.Nome" />
@@ -32,6 +32,7 @@ else
         </div>
         <div class="mb-3">
             <label>Categoria:</label>
+            <!-- Aqui você pode optar por um dropdown se tiver uma lista de categorias -->
             <select class="form-select" @bind="novoProduto.CategoriaId">
                 @if (categorias != null)
                 {
@@ -61,16 +62,8 @@ else
     {
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
-            // Carrega lista de categorias
-            var resp = await Http.GetAsync("api/Categorias");
-            var debugContent = await resp.Content.ReadAsStringAsync();
-            Console.WriteLine($"[DEBUG] GET /api/Categorias => {resp.StatusCode}\n{debugContent}");
-
-            categorias = await resp.Content.ReadFromJsonAsync<List<Categoria>>() ?? new List<Categoria>();
-            Console.WriteLine($"[DEBUG] Carregadas {categorias.Count} categorias.");
-
-            // Se tiver ao menos 1 categoria, podemos definir a primeira como default
-            if (categorias.Count > 0)
+            categorias = await Http.GetFromJsonAsync<List<Categoria>>("api/Categorias");
+            if (categorias?.Count > 0)
             {
                 novoProduto.CategoriaId = categorias[0].CategoriaId;
             }
@@ -79,16 +72,10 @@ else
 
     private async Task HandleSubmit()
     {
-        // Certifique-se de não enviar o objeto "Categoria"
+        // Garanta que o objeto de navegação não seja enviado
         novoProduto.Categoria = null;
 
-        Console.WriteLine($"[DEBUG] Criando produto: Nome={novoProduto.Nome}, Marca={novoProduto.Marca}, Desc={novoProduto.Descricao}, CatId={novoProduto.CategoriaId}");
-
         var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
-
-        var debugText = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"[DEBUG] Resposta: {response.StatusCode} - {debugText}");
-
         if (response.IsSuccessStatusCode)
         {
             mensagem = "Produto criado com sucesso!";
@@ -96,6 +83,7 @@ else
         }
         else
         {
+            var debugText = await response.Content.ReadAsStringAsync();
             mensagem = $"Erro ao criar produto: {debugText}";
         }
     }

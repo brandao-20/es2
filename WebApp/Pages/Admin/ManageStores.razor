@@ -1,11 +1,128 @@
 @page "/stores"
+@using WebApp.Models
+@inject HttpClient Http
 @inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+@inject IJSRuntime JSRuntime
 
 <h2>Gerir Lojas</h2>
-<p>Aqui você poderá listar, editar e remover lojas.</p>
 
-<button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para gerir lojas.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <p>Aqui você poderá listar, editar e remover lojas.</p>
+    <div class="mb-3">
+        <button class="btn btn-primary" @onclick="NovaLoja">Adicionar Nova Loja</button>
+    </div>
+
+    @if (lojas == null)
+    {
+        <p>Carregando...</p>
+    }
+    else if (!lojas.Any())
+    {
+        <p>Nenhuma loja cadastrada.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Endereço</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in lojas)
+                {
+                    <tr>
+                        <td>@l.LojaId</td>
+                        <td>@l.Nome</td>
+                        <td>@l.Endereco</td>
+                        <td>@l.Localizacao?.Latitude</td>
+                        <td>@l.Localizacao?.Longitude</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(l.LojaId))">Editar</button>
+                            <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(l.LojaId))">Remover</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
 
 @code {
+    private List<LojaModel>? lojas;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAdmin || AuthService.IsManager)
+        {
+            // Carrega Lojas com Localizacao
+            lojas = await Http.GetFromJsonAsync<List<LojaModel>>("api/Lojas");
+        }
+    }
+
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
+    private void NovaLoja() => Navigation.NavigateTo("/stores/new");
+
+    private void Editar(int lojaId)
+    {
+        Navigation.NavigateTo($"/stores/edit/{lojaId}");
+    }
+
+    private async Task Excluir(int lojaId)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"Deseja remover a loja {lojaId}?");
+        if (!confirmar) return;
+
+        var response = await Http.DeleteAsync($"api/Lojas/{lojaId}");
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Loja removida com sucesso!";
+            lojas = await Http.GetFromJsonAsync<List<LojaModel>>("api/Lojas");
+        }
+        else
+        {
+            var debug = await response.Content.ReadAsStringAsync();
+            message = $"Erro ao remover loja: {debug}";
+        }
+    }
+
+    // Modelos do front-end
+    public class LojaModel
+    {
+        public int LojaId { get; set; }
+        public string Nome { get; set; } = "";
+        public string Endereco { get; set; } = "";
+
+        public int? LocalizacaoId { get; set; }
+        public LocalizacaoModel? Localizacao { get; set; }
+    }
+
+    public class LocalizacaoModel
+    {
+        public int LocalizacaoId { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+        public string? GoogleMapsUrl { get; set; }
+        // etc
+    }
 }

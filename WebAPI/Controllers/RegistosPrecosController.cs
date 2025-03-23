@@ -47,10 +47,28 @@ namespace WebAPI.Controllers
         [Authorize]
         public async Task<ActionResult<RegistosPreco>> Create(RegistosPreco registo)
         {
-            registo.DataRegisto = DateTime.UtcNow;
-            _context.RegistosPrecos.Add(registo);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetById), new { id = registo.RegistoPrecoId }, registo);
+            try
+            {
+                // Checar se produto e loja existem
+                bool prodExists = await _context.Produtos.AnyAsync(p => p.ProdutoId == registo.ProdutoId);
+                if (!prodExists) return BadRequest($"Produto {registo.ProdutoId} não existe.");
+
+                bool storeExists = await _context.Lojas.AnyAsync(l => l.LojaId == registo.LojaId);
+                if (!storeExists) return BadRequest($"Loja {registo.LojaId} não existe.");
+
+                // Se quiser, define dataRegisto
+                if (registo.DataRegisto == default)
+                    registo.DataRegisto = DateTime.UtcNow;
+
+                _context.RegistosPrecos.Add(registo);
+                await _context.SaveChangesAsync();
+                return CreatedAtAction(nameof(GetById), new { id = registo.RegistoPrecoId }, registo);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, "Ocorreu um erro interno: " + ex.Message);
+            }
         }
 
         // Atualização de preço – usuário autenticado

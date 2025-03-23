@@ -1,0 +1,77 @@
+@page "/stores/edit/{id:int}"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<h2>Editar Loja</h2>
+
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para editar lojas.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    @if (loja == null)
+    {
+        <p>Carregando loja...</p>
+    }
+    else
+    {
+        <EditForm Model="loja" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label>Nome:</label>
+                <InputText class="form-control" @bind-Value="loja.Nome" />
+            </div>
+            <div class="mb-3">
+                <label>Endereço:</label>
+                <InputText class="form-control" @bind-Value="loja.Endereco" />
+            </div>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
+        </EditForm>
+    }
+}
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private Loja? loja;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAdmin && !AuthService.IsManager)
+        {
+            Navigation.NavigateTo("/homeadmin");
+            return;
+        }
+
+        loja = await Http.GetFromJsonAsync<Loja>($"api/Lojas/{id}");
+    }
+
+    private async Task HandleSubmit()
+    {
+        var response = await Http.PutAsJsonAsync($"api/Lojas/{id}", loja);
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Loja atualizada com sucesso!";
+            Navigation.NavigateTo("/stores");
+        }
+        else
+        {
+            var debug = await response.Content.ReadAsStringAsync();
+            message = $"Erro ao atualizar loja: {debug}";
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/stores");
+}

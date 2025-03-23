@@ -5,16 +5,48 @@
 
 @code {
     [Parameter]
-    public decimal Latitude { get; set; }
+    public decimal Latitude { get; set; } = 0m;
+
     [Parameter]
-    public decimal Longitude { get; set; }
-    private string MapElementId = "map_" + Guid.NewGuid().ToString("N");
+    public decimal Longitude { get; set; } = 0m;
+
+    // Callback que o pai pode receber ao clicar no mapa
+    [Parameter]
+    public EventCallback<(decimal lat, decimal lng)> OnMapClick { get; set; }
+
+    private DotNetObjectReference<GoogleMap>? _objectRef;
+    private string MapElementId = $"map_{Guid.NewGuid():N}";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await JS.InvokeVoidAsync("mapsInterop.initMapaLoja", Latitude, Longitude, MapElementId);
+            // Cria referência para podermos chamar "SetCoordinates" do JS
+            _objectRef = DotNetObjectReference.Create(this);
+
+            // Invoca "initMapaLojaClick" do JS
+            await JS.InvokeVoidAsync(
+                "mapsInterop.initMapaLojaClick",
+                Latitude,
+                Longitude,
+                MapElementId,
+                _objectRef
+            );
+        }
+    }
+
+    // Este método será chamado pelo JS ao clicar no mapa
+    [JSInvokable]
+    public async Task SetCoordinates(double lat, double lng)
+    {
+        // Converte para decimal
+        decimal dLat = (decimal)lat;
+        decimal dLng = (decimal)lng;
+
+        // Dispara callback
+        if (OnMapClick.HasDelegate)
+        {
+            await OnMapClick.InvokeAsync((dLat, dLng));
         }
     }
 }

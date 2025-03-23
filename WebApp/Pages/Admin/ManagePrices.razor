@@ -1,0 +1,75 @@
+@page "/prices"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<h2>Registos de Preço</h2>
+
+@if (!AuthService.IsLoggedIn)
+{
+    <p>Você precisa estar logado para ver os registros de preço.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-primary" @onclick="NovoRegistro">Novo Registo de Preço</button>
+    </div>
+
+    @if (registos == null)
+    {
+        <p>Carregando...</p>
+    }
+    else if (!registos.Any())
+    {
+        <p>Nenhum registro de preço encontrado.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Produto</th>
+                    <th>Loja</th>
+                    <th>Preço</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in registos)
+                {
+                    <tr>
+                        <td>@r.RegistoPrecoId</td>
+                        <td>@r.Produto?.Nome</td>
+                        <td>@r.Loja?.Nome</td>
+                        <td>@r.Preco</td>
+                        <td>@r.DataRegisto.ToString("g")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+
+@code {
+    private List<RegistosPreco>? registos;
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        registos = await Http.GetFromJsonAsync<List<RegistosPreco>>("api/RegistosPrecos");
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/homeadmin");
+    private void NovoRegistro() => Navigation.NavigateTo("/prices/new");
+}

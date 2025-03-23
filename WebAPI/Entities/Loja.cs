@@ -12,7 +12,6 @@ public partial class Loja
 
     public string Endereco { get; set; } = null!;
 
-    [JsonIgnore]
     public int? LocalizacaoId { get; set; }
 
     public virtual Localizacao? Localizacao { get; set; }

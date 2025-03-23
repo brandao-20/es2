@@ -1,0 +1,105 @@
+@page "/prices/new"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<PageTitle>Registrar Preço</PageTitle>
+<h3>Registrar Preço</h3>
+
+@if (!AuthService.IsLoggedIn)
+{
+    <p>Você precisa estar logado para registrar um preço.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <EditForm Model="newRecord" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Produto:</label>
+            <select class="form-select" @bind="newRecord.ProdutoId">
+                @if (produtos != null)
+                {
+                    @foreach (var p in produtos)
+                    {
+                        <option value="@p.ProdutoId">@p.Nome</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label>Loja:</label>
+            <select class="form-select" @bind="newRecord.LojaId">
+                @if (lojas != null)
+                {
+                    @foreach (var l in lojas)
+                    {
+                        <option value="@l.LojaId">@l.Nome</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label>Preço:</label>
+            <InputNumber class="form-control" @bind-Value="newRecord.Preco" />
+        </div>
+
+        <div class="mb-3">
+            <label>Data:</label>
+            <InputDate class="form-control" @bind-Value="newRecord.DataRegisto" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Registrar Preço</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
+    </EditForm>
+}
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@code {
+    private RegistosPreco newRecord = new RegistosPreco();
+    private List<Produto>? produtos;
+    private List<Loja>? lojas;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Carrega produtos e lojas já cadastrados
+        produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
+        lojas = await Http.GetFromJsonAsync<List<Loja>>("api/Lojas");
+
+        // Define a data padrão como hoje, se não for informada
+        newRecord.DataRegisto = DateTime.Now;
+    }
+
+    private async Task HandleSubmit()
+    {
+        var response = await Http.PostAsJsonAsync("api/RegistosPrecos", newRecord);
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Preço registrado com sucesso!";
+            Navigation.NavigateTo("/produtos");
+        }
+        else
+        {
+            var debugMsg = await response.Content.ReadAsStringAsync();
+            message = $"Erro ao registrar preço: {debugMsg}";
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/produtos");
+}
