@@ -19,7 +19,7 @@ else if (!produtos.Any())
 else
 {
     <div class="mb-3">
-        @* Se o usuário for Admin ou UserManager, exibimos o botão "Criar Produto" *@
+        @* Se o utilizador for Admin ou UserManager, exibimos o botão "Criar Produto" *@
         @if (AuthService.IsAdmin || AuthService.IsManager)
         {
             <button class="btn btn-primary" @onclick="IrParaCriarProduto">Criar Novo Produto</button>

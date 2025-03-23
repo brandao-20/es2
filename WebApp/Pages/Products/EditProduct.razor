@@ -24,6 +24,7 @@ else
         <EditForm Model="produto" OnValidSubmit="HandleSubmit">
             <DataAnnotationsValidator />
             <ValidationSummary />
+
             <div class="mb-3">
                 <label>Nome:</label>
                 <InputText class="form-control" @bind-Value="produto.Nome" />
@@ -36,11 +37,22 @@ else
                 <label>Descrição:</label>
                 <InputText class="form-control" @bind-Value="produto.Descricao" />
             </div>
+
             <div class="mb-3">
-                <label>ID da Categoria:</label>
-                <InputNumber class="form-control" @bind-Value="produto.CategoriaId" />
+                <label>Categoria:</label>
+                <select class="form-select" @bind="produto.CategoriaId">
+                    @if (categorias != null)
+                    {
+                        @foreach (var cat in categorias)
+                        {
+                            <option value="@cat.CategoriaId">@cat.Nome</option>
+                        }
+                    }
+                </select>
             </div>
+
             <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
         </EditForm>
     }
 }
@@ -53,20 +65,33 @@ else
 @code {
     [Parameter] public int id { get; set; }
     private Produto? produto;
+    private List<Categoria>? categorias;
     private string? mensagem;
 
     protected override async Task OnInitializedAsync()
     {
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
-            // Carrega o produto
+            // 1. Carrega a lista de categorias
+            categorias = await Http.GetFromJsonAsync<List<Categoria>>("api/Categorias");
+            
+            // 2. Carrega o produto
             produto = await Http.GetFromJsonAsync<Produto>($"api/Produtos/{id}");
+            if (produto != null && produto.Categoria != null)
+            {
+                // Ajusta o CategoriaId e zera "Categoria" para não enviar no PUT
+                produto.CategoriaId = produto.Categoria.CategoriaId;
+                produto.Categoria = null;
+            }
         }
     }
 
     private async Task HandleSubmit()
     {
         if (produto == null) return;
+
+        // Garante que não enviamos o objeto "Categoria"
+        produto.Categoria = null;
 
         var response = await Http.PutAsJsonAsync($"api/Produtos/{id}", produto);
         if (response.IsSuccessStatusCode)

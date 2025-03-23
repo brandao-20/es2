@@ -14,7 +14,6 @@ public partial class Produto
 
     public string? Descricao { get; set; }
 
-    [JsonIgnore]
     public int CategoriaId { get; set; }
 
     public virtual Categoria? Categoria { get; set; } = null!;
