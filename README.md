@@ -70,7 +70,7 @@ Copie o arquivo de exemplo para criar o appsettings.json:
    2. Abra o arquivo WebAPI/appsettings.json e substitua os valores pelas suas credenciais:
       ```bash
          "ConnectionStrings": {
-            "DefaultConnection": "Host=localhost;Database=ES2;Username=postgres;Password=sua_senha"
+            "DefaultConnection": "Host=localhost;Database=ES2;Username=postgres;Password=sua_password"
          }
       ```
 
