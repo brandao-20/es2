@@ -55,3 +55,9 @@ ehthumbs.db
 # Rider / VS Code workspace settings
 *.code-workspace
 .vscode/
+
+# User secrets / local configs
+**/appsettings.json
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/appsettings.*.secrets.json
