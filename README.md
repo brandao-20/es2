@@ -1,6 +1,6 @@
 # ES2_TP_ComparadorPrecos
 
-Plataforma de Comparação de Preços desenvolvida em .NET 8 (Web API + Blazor). Este projeto permite comparar preços de produtos em diferentes lojas, com autenticação, CRUD e relatórios.
+Plataforma de Comparação de Preços desenvolvida em .NET 8. Este projeto permite comparar preços de produtos em diferentes lojas, com autenticação, CRUD e relatórios.
 
 ## Pré-requisitos
 
@@ -18,12 +18,12 @@ Antes de começar, certifique-se de que você tem os seguintes itens instalados:
 - **Git**: [Download](https://git-scm.com/downloads)
    - Para clonar o repositório.
 
-
 ## Configuração do Ambiente
 
 Siga os passos abaixo para configurar e executar o projeto.
 
 - **1. Clonar o Repositório**:
+
 Clone o repositório para o seu computador:
 
    ```bash
@@ -32,7 +32,7 @@ Clone o repositório para o seu computador:
    ```
 
 - **2. Configurar a Base de Dados**:
-Criar a Base de Dados
+
 Conecte-se ao PostgreSQL (usando psql ou pgAdmin) e crie a base de dados ES2:
 
    ```bash
@@ -40,6 +40,7 @@ Conecte-se ao PostgreSQL (usando psql ou pgAdmin) e crie a base de dados ES2:
    ```
 
 - **3. Aplicar as Migrações**:
+
 O projeto já inclui migrações para criar as tabelas necessárias. Siga os passos abaixo:
 
    1. Navegue até o diretório WebAPI:
@@ -59,37 +60,44 @@ O projeto já inclui migrações para criar as tabelas necessárias. Siga os pas
 
 - **4. Configurar o appsettings.json**:
 
-O projeto requer configurações específicas, como a string de conexão com a base de dados e credenciais de autenticação.
-
 Copie o arquivo de exemplo para criar o appsettings.json:
 
-cp WebAPI/appsettings.example.json WebAPI/appsettings.json
+   1. Navegue até o diretório WebAPI:
+      ```bash
+         cp WebAPI/appsettings.example.json WebAPI/appsettings.json
+      ```
 
-bra o arquivo WebAPI/appsettings.json e substitua os valores pelas suas credenciais:
+   2. Abra o arquivo WebAPI/appsettings.json e substitua os valores pelas suas credenciais:
+      ```bash
+         "ConnectionStrings": {
+            "DefaultConnection": "Host=localhost;Database=ES2;Username=postgres;Password=sua_senha"
+         }
+      ```
 
-String de Conexão (ConnectionStrings:DefaultConnection): Ajuste o Username e Password para corresponder ao seu PostgreSQL. Exemplo:
+- **5. Executar o Backend**:
 
-"ConnectionStrings": {
-  "DefaultConnection": "Host=localhost;Database=ES2;Username=postgres;Password=sua_senha"
-}
+   1. No diretório WebAPI, execute o backend:
+      ```bash
+         dotnet run --launch-profile WebAPI
+      ```
 
-4. Executar o Backend
-No diretório WebAPI, execute o backend:
+- **6. Executar o Frontend**:
 
-dotnet run --launch-profile WebAPI
+   1. Abra um novo terminal e navegue até o diretório WebApp:
+      ```bash
+         cd WebApp
+      ```
 
-5. Executar o Frontend
-Abra um novo terminal e navegue até o diretório WebApp
+   2. Restaure as dependências do frontend:
+      ```bash
+         dotnet restore
+      ```
 
-cd WebApp
-
-Restaure as dependências do frontend:
-
-dotnet restore
-
-Execute o frontend:  
-
-dotnet run
+   3. Execute o frontend:
+      ```bash
+         dotnet run
+      ```
 
 ## Aceder à Aplicação
-Abra o navegador e acesse o frontend (ex.: http://localhost:5116).
+
+Abra o navegador e aceda ao frontend (http://localhost:5116)
