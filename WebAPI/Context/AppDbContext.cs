@@ -22,6 +22,7 @@ namespace WebAPI.Context
         public virtual DbSet<TipoAcao> TipoAcaos { get; set; }
         public virtual DbSet<TipoUtilizador> TipoUtilizadors { get; set; }
         public virtual DbSet<Utilizador> Utilizadores { get; set; }
+        public virtual DbSet<Mensagem> Mensagens { get; set; }
     
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code.

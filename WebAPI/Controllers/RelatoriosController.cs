@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebAPI.Context;
 using WebAPI.Entities;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -9,22 +8,30 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class RelatoriosController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly ILojaRepository _lojaRepository;
+        private readonly IRegistosPrecoRepository _registosPrecoRepository;
+        private readonly IProdutoRepository _produtoRepository;
 
-        public RelatoriosController(AppDbContext context)
+        public RelatoriosController(
+            ILojaRepository lojaRepository,
+            IRegistosPrecoRepository registosPrecoRepository,
+            IProdutoRepository produtoRepository)
         {
-            _context = context;
+            _lojaRepository = lojaRepository;
+            _registosPrecoRepository = registosPrecoRepository;
+            _produtoRepository = produtoRepository;
         }
 
         [HttpGet("lojas")]
         public async Task<ActionResult<IEnumerable<LojaReportDto>>> GetLojasReport()
         {
-            var lojas = await _context.Lojas.Include(l => l.Localizacao).ToListAsync();
+            var lojas = await _lojaRepository.GetAllWithDetailsAsync();
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
             var report = new List<LojaReportDto>();
 
             foreach (var loja in lojas)
             {
-                var produtosInfo = await _context.RegistosPrecos
+                var produtosInfo = registos
                     .Where(r => r.LojaId == loja.LojaId)
                     .GroupBy(r => r.ProdutoId)
                     .Select(g => new ProdutoPriceDto
@@ -34,9 +41,9 @@ namespace WebAPI.Controllers
                         LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
                         LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
                     })
-                    .ToListAsync();
+                    .ToList();
 
-                var categoriaCounts = await _context.RegistosPrecos
+                var categoriaCounts = registos
                     .Where(r => r.LojaId == loja.LojaId)
                     .GroupBy(r => r.Produto.CategoriaId)
                     .Select(g => new CategoriaCountDto
@@ -45,7 +52,7 @@ namespace WebAPI.Controllers
                         CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault(),
                         Count = g.Count()
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 report.Add(new LojaReportDto
                 {
@@ -64,12 +71,13 @@ namespace WebAPI.Controllers
         [HttpGet("produtos")]
         public async Task<ActionResult<IEnumerable<ProdutoReportDto>>> GetProdutosReport()
         {
-            var produtos = await _context.Produtos.Include(p => p.Categoria).ToListAsync();
+            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
             var report = new List<ProdutoReportDto>();
 
             foreach (var produto in produtos)
             {
-                var lojasInfo = await _context.RegistosPrecos
+                var lojasInfo = registos
                     .Where(r => r.ProdutoId == produto.ProdutoId)
                     .GroupBy(r => r.LojaId)
                     .Select(g => new LojaPriceDto
@@ -79,7 +87,7 @@ namespace WebAPI.Controllers
                         LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
                         LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 report.Add(new ProdutoReportDto
                 {

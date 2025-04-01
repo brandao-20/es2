@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebAPI.Context;
 using WebAPI.Entities;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -9,66 +8,58 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class TipoAcaosController : ControllerBase
     {
-        private readonly AppDbContext _context;
-    
-        public TipoAcaosController(AppDbContext context)
+        private readonly ITipoAcaoRepository _tipoAcaoRepository;
+
+        public TipoAcaosController(ITipoAcaoRepository tipoAcaoRepository)
         {
-            _context = context;
+            _tipoAcaoRepository = tipoAcaoRepository;
         }
-    
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TipoAcao>>> GetAll()
         {
-            return await _context.TipoAcaos.ToListAsync();
+            return Ok(await _tipoAcaoRepository.GetAllAsync());
         }
-    
+
         [HttpGet("{id}")]
         public async Task<ActionResult<TipoAcao>> GetById(int id)
         {
-            var tipo = await _context.TipoAcaos.FindAsync(id);
+            var tipo = await _tipoAcaoRepository.GetByIdAsync(id);
             if (tipo == null) return NotFound();
             return tipo;
         }
-    
+
         [HttpPost]
         public async Task<ActionResult<TipoAcao>> Create(TipoAcao tipo)
         {
-            _context.TipoAcaos.Add(tipo);
-            await _context.SaveChangesAsync();
+            await _tipoAcaoRepository.AddAsync(tipo);
             return CreatedAtAction(nameof(GetById), new { id = tipo.TipoAcaoId }, tipo);
         }
-    
+
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, TipoAcao tipo)
         {
             if (id != tipo.TipoAcaoId) return BadRequest();
-            _context.Entry(tipo).State = EntityState.Modified;
+
             try
             {
-                await _context.SaveChangesAsync();
+                await _tipoAcaoRepository.UpdateAsync(tipo);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (KeyNotFoundException)
             {
-                if (!Exists(id)) return NotFound();
-                else throw;
+                return NotFound();
             }
             return NoContent();
         }
-    
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var tipo = await _context.TipoAcaos.FindAsync(id);
+            var tipo = await _tipoAcaoRepository.GetByIdAsync(id);
             if (tipo == null) return NotFound();
-    
-            _context.TipoAcaos.Remove(tipo);
-            await _context.SaveChangesAsync();
+
+            await _tipoAcaoRepository.DeleteAsync(tipo);
             return NoContent();
-        }
-    
-        private bool Exists(int id)
-        {
-            return _context.TipoAcaos.Any(e => e.TipoAcaoId == id);
         }
     }
 }

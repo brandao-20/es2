@@ -33,7 +33,7 @@
 {
     <div class="mb-3">
         <label>Nome:</label>
-        <InputText class="form-control" @bind-Value="searchCriteria.Name" />
+        <InputText class="form-control" @bind-Value="searchCriteria.Name" @oninput="OnNameInput" />
     </div>
 }
 @if (useCategory)
@@ -47,7 +47,7 @@
 {
     <div class="mb-3">
         <label>Nome da Loja:</label>
-        <InputText class="form-control" @bind-Value="searchCriteria.Store" />
+        <InputText class="form-control" @bind-Value="searchCriteria.Store" @oninput="OnStoreInput" />
     </div>
 }
 @if (useDate)
@@ -103,23 +103,57 @@ else
     private List<Produto> products = new();
     private SearchCriteria searchCriteria = new SearchCriteria();
 
-    private void ToggleFilters() => showFilters = !showFilters;
+    protected override void OnInitialized()
+    {
+        searchCriteria = new SearchCriteria();
+        Console.WriteLine("[DEBUG] Componente inicializado - searchCriteria criado.");
+    }
+
+    private void ToggleFilters()
+    {
+        showFilters = !showFilters;
+        StateHasChanged();
+    }
+
+    private void OnNameInput(ChangeEventArgs e)
+    {
+        searchCriteria.Name = e.Value?.ToString() ?? "";
+        Console.WriteLine($"[DEBUG] Nome atualizado via oninput: '{searchCriteria.Name}'");
+        StateHasChanged();
+    }
+
+    private void OnStoreInput(ChangeEventArgs e)
+    {
+        searchCriteria.Store = e.Value?.ToString() ?? "";
+        Console.WriteLine($"[DEBUG] Loja atualizada via oninput: '{searchCriteria.Store}'");
+        StateHasChanged();
+    }
 
     private async Task HandleSearch()
     {
+        await InvokeAsync(StateHasChanged);
+        Console.WriteLine($"[DEBUG] Após StateHasChanged - useName: {useName}, searchCriteria.Name: '{searchCriteria.Name}'");
+
         var query = new List<string>();
         if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
-            query.Add($"name={searchCriteria.Name}");
+            query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}"); // Alterado de "name" para "nome"
         if (useCategory && searchCriteria.CategoryId.HasValue)
-            query.Add($"categoryId={searchCriteria.CategoryId.Value}");
+            query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
         if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
-            query.Add($"store={searchCriteria.Store}");
+            query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
         if (useDate && searchCriteria.DateFrom.HasValue)
             query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
 
         var queryString = string.Join("&", query);
-        products = await Http.GetFromJsonAsync<List<Produto>>($"api/Produtos/search?{queryString}") 
+        Console.WriteLine($"[DEBUG] Enviando requisição para: api/Produtos/search?{queryString}");
+
+        var response = await Http.GetAsync($"api/Produtos/search?{queryString}");
+        var responseContent = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"[DEBUG] Resposta bruta da API: {responseContent}");
+
+        products = await response.Content.ReadFromJsonAsync<List<Produto>>() 
                     ?? new List<Produto>();
+        Console.WriteLine($"[DEBUG] Produtos desserializados: {products.Count}");
     }
 
     public class SearchCriteria

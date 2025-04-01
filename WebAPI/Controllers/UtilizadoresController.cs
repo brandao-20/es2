@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using WebAPI.Context;
 using WebAPI.Entities;
 using WebAPI.Helpers;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -12,51 +11,51 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class UtilizadoresController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IUtilizadorRepository _utilizadorRepository;
+        private readonly ITipoUtilizadorRepository _tipoUtilizadorRepository;
 
-        public UtilizadoresController(AppDbContext context)
+        public UtilizadoresController(
+            IUtilizadorRepository utilizadorRepository,
+            ITipoUtilizadorRepository tipoUtilizadorRepository)
         {
-            _context = context;
+            _utilizadorRepository = utilizadorRepository;
+            _tipoUtilizadorRepository = tipoUtilizadorRepository;
         }
 
-        // Endpoint de registro para usuário comum
         [HttpPost("register")]
         public async Task<ActionResult<Utilizador>> Register(Utilizador utilizador)
         {
-            if (!_context.Utilizadores.Any())
+            var tiposExistentes = await _utilizadorRepository.GetAllAsync();
+            if (!tiposExistentes.Any())
             {
-                var adminTipo = await _context.TipoUtilizadors.FirstOrDefaultAsync(t => t.Tipo.ToLower() == "admin");
+                var adminTipo = (await _tipoUtilizadorRepository.FindAsync(t => t.Tipo.ToLower() == "admin")).FirstOrDefault();
                 if (adminTipo == null)
                 {
                     adminTipo = new TipoUtilizador { Tipo = "Admin" };
-                    _context.TipoUtilizadors.Add(adminTipo);
-                    await _context.SaveChangesAsync();
+                    await _tipoUtilizadorRepository.AddAsync(adminTipo);
                 }
                 utilizador.TipoUtilizadorId = adminTipo.TipoUtilizadorId;
             }
             else
             {
-                var userTipo = await _context.TipoUtilizadors.FirstOrDefaultAsync(t => t.Tipo.ToLower() == "user");
+                var userTipo = (await _tipoUtilizadorRepository.FindAsync(t => t.Tipo.ToLower() == "user")).FirstOrDefault();
                 if (userTipo == null)
                 {
                     userTipo = new TipoUtilizador { Tipo = "User" };
-                    _context.TipoUtilizadors.Add(userTipo);
-                    await _context.SaveChangesAsync();
+                    await _tipoUtilizadorRepository.AddAsync(userTipo);
                 }
                 utilizador.TipoUtilizadorId = userTipo.TipoUtilizadorId;
             }
 
             utilizador.Password = PasswordHelper.HashPassword(utilizador.Password);
-            _context.Utilizadores.Add(utilizador);
-            await _context.SaveChangesAsync();
+            await _utilizadorRepository.AddAsync(utilizador);
             return CreatedAtAction(nameof(GetById), new { id = utilizador.UtilizadorId }, utilizador);
         }
 
         [HttpGet("{id:int}")]
         public async Task<ActionResult<Utilizador>> GetById(int id)
         {
-            var user = await _context.Utilizadores.Include(u => u.TipoUtilizador)
-                .FirstOrDefaultAsync(u => u.UtilizadorId == id);
+            var user = await _utilizadorRepository.GetByIdWithDetailsAsync(id);
             if (user == null) return NotFound();
             return user;
         }
@@ -64,7 +63,7 @@ namespace WebAPI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Utilizador>>> GetAll()
         {
-            return await _context.Utilizadores.Include(u => u.TipoUtilizador).ToListAsync();
+            return Ok(await _utilizadorRepository.GetAllWithDetailsAsync());
         }
 
         [HttpPut("{id:int}")]
@@ -72,22 +71,19 @@ namespace WebAPI.Controllers
         {
             if (id != utilizador.UtilizadorId) return BadRequest();
 
-            var existingUser = await _context.Utilizadores.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.UtilizadorId == id);
+            var existingUser = await _utilizadorRepository.GetByIdAsync(id);
             if (existingUser != null && utilizador.Password != existingUser.Password)
             {
                 utilizador.Password = PasswordHelper.HashPassword(utilizador.Password);
             }
 
-            _context.Entry(utilizador).State = EntityState.Modified;
             try
             {
-                await _context.SaveChangesAsync();
+                await _utilizadorRepository.UpdateAsync(utilizador);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (KeyNotFoundException)
             {
-                if (!_context.Utilizadores.Any(e => e.UtilizadorId == id)) return NotFound();
-                else throw;
+                return NotFound();
             }
             return NoContent();
         }
@@ -102,15 +98,13 @@ namespace WebAPI.Controllers
                 return BadRequest("Não é possível remover a si próprio por este endpoint.");
             }
 
-            var user = await _context.Utilizadores.FindAsync(id);
+            var user = await _utilizadorRepository.GetByIdAsync(id);
             if (user == null) return NotFound();
 
-            _context.Utilizadores.Remove(user);
-            await _context.SaveChangesAsync();
+            await _utilizadorRepository.DeleteAsync(user);
             return NoContent();
         }
 
-        // Novo endpoint: usuário removendo sua própria conta
         [HttpDelete("me")]
         [Authorize]
         public async Task<IActionResult> DeleteMyAccount()
@@ -121,29 +115,23 @@ namespace WebAPI.Controllers
             if (!int.TryParse(userIdClaim.Value, out int userId))
                 return BadRequest("ID do usuário inválido.");
 
-            var user = await _context.Utilizadores.FindAsync(userId);
+            var user = await _utilizadorRepository.GetByIdAsync(userId);
             if (user == null) return NotFound();
 
-            _context.Utilizadores.Remove(user);
-            await _context.SaveChangesAsync();
+            await _utilizadorRepository.DeleteAsync(user);
             return NoContent();
         }
 
-        // ================  NOVOS ENDPOINTS PARA ADMIN / MANAGER  =============
-
-        // (1) AdminCreate: cria usuário com cargo (role) escolhido
         [HttpPost("admincreate")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> AdminCreate(UserDto dto)
         {
-            // Converte "Admin", "UserManager", "User" -> "ADMIN", "USER_MANAGER", "USER"
             var roleDb = dto.Tipo.ToUpper();
-            var tipoEntity = await _context.TipoUtilizadors.FirstOrDefaultAsync(t => t.Tipo == roleDb);
+            var tipoEntity = (await _tipoUtilizadorRepository.FindAsync(t => t.Tipo == roleDb)).FirstOrDefault();
             if (tipoEntity == null)
             {
                 tipoEntity = new TipoUtilizador { Tipo = roleDb };
-                _context.TipoUtilizadors.Add(tipoEntity);
-                await _context.SaveChangesAsync();
+                await _tipoUtilizadorRepository.AddAsync(tipoEntity);
             }
 
             var user = new Utilizador
@@ -155,19 +143,15 @@ namespace WebAPI.Controllers
                 DataCriacao = DateTime.UtcNow
             };
 
-            _context.Utilizadores.Add(user);
-            await _context.SaveChangesAsync();
+            await _utilizadorRepository.AddAsync(user);
             return Ok(user);
         }
 
-        // (2) AdminGetUser: retorna DTO para edição
         [HttpGet("adminget/{id:int}")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<ActionResult<UserDto>> AdminGetUser(int id)
         {
-            var user = await _context.Utilizadores
-                .Include(u => u.TipoUtilizador)
-                .FirstOrDefaultAsync(u => u.UtilizadorId == id);
+            var user = await _utilizadorRepository.GetByIdWithDetailsAsync(id);
             if (user == null) return NotFound();
 
             var roleDb = user.TipoUtilizador?.Tipo ?? "USER";
@@ -176,18 +160,16 @@ namespace WebAPI.Controllers
                 UtilizadorId = user.UtilizadorId,
                 Username = user.Username,
                 Email = user.Email,
-                // Normalizar "ADMIN" -> "Admin", etc.
                 Tipo = NormalizeRoleFromDb(roleDb)
             };
             return dto;
         }
 
-        // (3) AdminEditUser: edita username, email, cargo e opcionalmente password
         [HttpPut("adminedit/{id:int}")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> AdminEditUser(int id, UserDto dto)
         {
-            var user = await _context.Utilizadores.FindAsync(id);
+            var user = await _utilizadorRepository.GetByIdAsync(id);
             if (user == null) return NotFound();
 
             user.Username = dto.Username;
@@ -199,16 +181,15 @@ namespace WebAPI.Controllers
             }
 
             var roleDb = dto.Tipo.ToUpper();
-            var tipoEntity = await _context.TipoUtilizadors.FirstOrDefaultAsync(t => t.Tipo == roleDb);
+            var tipoEntity = (await _tipoUtilizadorRepository.FindAsync(t => t.Tipo == roleDb)).FirstOrDefault();
             if (tipoEntity == null)
             {
                 tipoEntity = new TipoUtilizador { Tipo = roleDb };
-                _context.TipoUtilizadors.Add(tipoEntity);
-                await _context.SaveChangesAsync();
+                await _tipoUtilizadorRepository.AddAsync(tipoEntity);
             }
             user.TipoUtilizadorId = tipoEntity.TipoUtilizadorId;
 
-            await _context.SaveChangesAsync();
+            await _utilizadorRepository.UpdateAsync(user);
             return NoContent();
         }
 

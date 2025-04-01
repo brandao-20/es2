@@ -1,8 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebAPI.Context;
+using System.Linq.Expressions;
 using WebAPI.Entities;
+using WebAPI.Repositories;
+using WebAPI.Extensions;
 
 namespace WebAPI.Controllers
 {
@@ -10,39 +11,32 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class ProdutosController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IProdutoRepository _produtoRepository;
+        private readonly ICategoriaRepository _categoriaRepository;
 
-        public ProdutosController(AppDbContext context)
+        public ProdutosController(
+            IProdutoRepository produtoRepository,
+            ICategoriaRepository categoriaRepository)
         {
-            _context = context;
+            _produtoRepository = produtoRepository;
+            _categoriaRepository = categoriaRepository;
         }
 
-        // GET /api/Produtos
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Produto>>> GetAll()
         {
-            var produtos = await _context.Produtos
-                .Include(p => p.Categoria)
-                .ToListAsync();
+            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
             return Ok(produtos);
         }
 
-        // GET /api/Produtos/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<Produto>> GetById(int id)
         {
-            var produto = await _context.Produtos
-                .Include(p => p.Categoria)
-                .FirstOrDefaultAsync(p => p.ProdutoId == id);
-
-            if (produto == null) 
-                return NotFound();
-
+            var produto = await _produtoRepository.GetByIdWithDetailsAsync(id);
+            if (produto == null) return NotFound();
             return Ok(produto);
         }
 
-        // POST /api/Produtos
-        // Criação de produto – restrito a UserManager e Admin
         [HttpPost]
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<ActionResult<Produto>> Create(Produto produto)
@@ -50,23 +44,16 @@ namespace WebAPI.Controllers
             if (string.IsNullOrEmpty(produto.Nome) || string.IsNullOrEmpty(produto.Marca))
                 return BadRequest("Nome e Marca são obrigatórios.");
 
-            // Verifica se a categoria existe
-            bool categoryExists = await _context.Categorias
-                .AnyAsync(c => c.CategoriaId == produto.CategoriaId);
-
+            bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
             if (!categoryExists)
             {
                 return BadRequest($"A categoria {produto.CategoriaId} não existe.");
             }
 
-            _context.Produtos.Add(produto);
-            await _context.SaveChangesAsync();
-
+            await _produtoRepository.AddAsync(produto);
             return CreatedAtAction(nameof(GetById), new { id = produto.ProdutoId }, produto);
         }
 
-        // PUT /api/Produtos/{id}
-        // Edição de produto – restrito a UserManager e Admin
         [HttpPut("{id}")]
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<IActionResult> Update(int id, Produto produto)
@@ -74,62 +61,79 @@ namespace WebAPI.Controllers
             if (id != produto.ProdutoId)
                 return BadRequest("ID do produto não coincide.");
 
-            // Verifica se a categoria existe
-            bool categoryExists = await _context.Categorias
-                .AnyAsync(c => c.CategoriaId == produto.CategoriaId);
-
+            bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
             if (!categoryExists)
             {
                 return BadRequest($"A categoria {produto.CategoriaId} não existe.");
             }
 
-            _context.Entry(produto).State = EntityState.Modified;
             try
             {
-                await _context.SaveChangesAsync();
+                await _produtoRepository.UpdateAsync(produto);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (KeyNotFoundException)
             {
-                if (!_context.Produtos.Any(e => e.ProdutoId == id))
-                    return NotFound("Produto não encontrado.");
-
-                throw;
+                return NotFound("Produto não encontrado.");
             }
             return NoContent();
         }
 
-        // DELETE /api/Produtos/{id}
         [HttpDelete("{id}")]
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var produto = await _context.Produtos.FindAsync(id);
+            var produto = await _produtoRepository.GetByIdAsync(id);
             if (produto == null)
                 return NotFound("Produto não encontrado.");
 
-            _context.Produtos.Remove(produto);
-            await _context.SaveChangesAsync();
+            await _produtoRepository.DeleteAsync(produto);
             return NoContent();
         }
 
-        // GET /api/Produtos/search?nome=abc&categoriaId=1
-        // Pesquisa de produtos (acesso público)
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<Produto>>> Search(
             [FromQuery] string? nome,
-            [FromQuery] int? categoriaId)
+            [FromQuery] int? categoriaId,
+            [FromQuery] string? store,
+            [FromQuery] DateTime? dateFrom)
         {
-            var query = _context.Produtos
-                .Include(p => p.Categoria)
-                .AsQueryable();
+            // Log para depurar os valores recebidos
+            Console.WriteLine($"[DEBUG] Pesquisa de produtos - Nome: '{nome}', CategoriaId: {categoriaId}, Store: '{store}', DateFrom: {dateFrom}");
 
-            if (!string.IsNullOrEmpty(nome))
-                query = query.Where(p => p.Nome.Contains(nome));
+            // Criar a expressão de filtro
+            Expression<Func<Produto, bool>> predicate = p => true; // Começa com um filtro que aceita todos os produtos
 
+            // Adicionar filtro por nome, se fornecido
+            if (!string.IsNullOrWhiteSpace(nome))
+            {
+                string nomeLower = nome.ToLower();
+                predicate = p => p.Nome.ToLower().Contains(nomeLower);
+            }
+
+            // Adicionar filtro por categoria, se fornecido
             if (categoriaId.HasValue)
-                query = query.Where(p => p.CategoriaId == categoriaId.Value);
+            {
+                Expression<Func<Produto, bool>> categoriaPredicate = p => p.CategoriaId == categoriaId.Value;
+                predicate = predicate.And(categoriaPredicate);
+            }
 
-            var produtos = await query.ToListAsync();
+            // Adicionar filtro por loja, se fornecido (requer join com RegistosPreco e Loja)
+            if (!string.IsNullOrWhiteSpace(store))
+            {
+                Expression<Func<Produto, bool>> storePredicate = p =>
+                    p.RegistosPrecos.Any(rp => rp.Loja.Nome.ToLower().Contains(store.ToLower()));
+                predicate = predicate.And(storePredicate);
+            }
+
+            // Adicionar filtro por data, se fornecido (requer join com RegistosPreco)
+            if (dateFrom.HasValue)
+            {
+                Expression<Func<Produto, bool>> datePredicate = p =>
+                    p.RegistosPrecos.Any(rp => rp.DataRegisto >= dateFrom.Value);
+                predicate = predicate.And(datePredicate);
+            }
+
+            var produtos = await _produtoRepository.FindWithDetailsAsync(predicate);
             return Ok(produtos);
         }
     }

@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebAPI.Context;
 using WebAPI.Entities;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -9,67 +8,58 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class LocalizacoesController : ControllerBase
     {
-        private readonly AppDbContext _context;
-    
-        public LocalizacoesController(AppDbContext context)
+        private readonly ILocalizacaoRepository _localizacaoRepository;
+
+        public LocalizacoesController(ILocalizacaoRepository localizacaoRepository)
         {
-            _context = context;
+            _localizacaoRepository = localizacaoRepository;
         }
-    
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Localizacao>>> GetAll()
         {
-            return await _context.Localizacaos.ToListAsync();
+            return Ok(await _localizacaoRepository.GetAllAsync());
         }
-    
+
         [HttpGet("{id}")]
         public async Task<ActionResult<Localizacao>> GetById(int id)
         {
-            var localizacao = await _context.Localizacaos.FindAsync(id);
+            var localizacao = await _localizacaoRepository.GetByIdAsync(id);
             if (localizacao == null) return NotFound();
             return localizacao;
         }
-    
+
         [HttpPost]
         public async Task<ActionResult<Localizacao>> Create(Localizacao localizacao)
         {
-            _context.Localizacaos.Add(localizacao);
-            await _context.SaveChangesAsync();
+            await _localizacaoRepository.AddAsync(localizacao);
             return CreatedAtAction(nameof(GetById), new { id = localizacao.LocalizacaoId }, localizacao);
         }
-    
+
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, Localizacao localizacao)
         {
             if (id != localizacao.LocalizacaoId) return BadRequest();
-    
-            _context.Entry(localizacao).State = EntityState.Modified;
+
             try
             {
-                await _context.SaveChangesAsync();
+                await _localizacaoRepository.UpdateAsync(localizacao);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (KeyNotFoundException)
             {
-                if (!Exists(id)) return NotFound();
-                else throw;
+                return NotFound();
             }
             return NoContent();
         }
-    
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var localizacao = await _context.Localizacaos.FindAsync(id);
+            var localizacao = await _localizacaoRepository.GetByIdAsync(id);
             if (localizacao == null) return NotFound();
-    
-            _context.Localizacaos.Remove(localizacao);
-            await _context.SaveChangesAsync();
+
+            await _localizacaoRepository.DeleteAsync(localizacao);
             return NoContent();
-        }
-    
-        private bool Exists(int id)
-        {
-            return _context.Localizacaos.Any(e => e.LocalizacaoId == id);
         }
     }
 }

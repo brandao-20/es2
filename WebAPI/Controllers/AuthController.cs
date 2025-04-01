@@ -1,13 +1,14 @@
 ﻿using System;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using WebAPI.Context;
 using WebAPI.Entities;
 using WebAPI.Helpers;
+using WebAPI.Repositories;
+using WebAPI.Services;
 
 namespace WebAPI.Controllers
 {
@@ -15,21 +16,26 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IUtilizadorRepository _utilizadorRepository;
+        private readonly IRoleService _roleService;
         private readonly IConfiguration _configuration;
 
-        public AuthController(AppDbContext context, IConfiguration configuration)
+        public AuthController(
+            IUtilizadorRepository utilizadorRepository,
+            IRoleService roleService,
+            IConfiguration configuration)
         {
-            _context = context;
+            _utilizadorRepository = utilizadorRepository;
+            _roleService = roleService;
             _configuration = configuration;
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var user = await _context.Utilizadores
-                .Include(u => u.TipoUtilizador)
-                .FirstOrDefaultAsync(u => u.Username == request.Username);
+            Expression<Func<Utilizador, bool>> predicate = u => u.Username == request.Username;
+            var users = await _utilizadorRepository.FindWithDetailsAsync(predicate);
+            var user = users.FirstOrDefault();
 
             if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.Password))
             {
@@ -37,8 +43,7 @@ namespace WebAPI.Controllers
             }
 
             var token = GenerateJwtToken(user);
-            // Retornamos também a role normalizada
-            return Ok(new { token, role = NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER") });
+            return Ok(new { token, role = _roleService.NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER") });
         }
 
         private string GenerateJwtToken(Utilizador user)
@@ -49,14 +54,11 @@ namespace WebAPI.Controllers
             string issuer = jwtSettings["Issuer"] ?? "http://localhost:5000";
             string audience = jwtSettings["Audience"] ?? "http://localhost:5000";
 
-            // Normalizar a role que vem do banco (por ex. "ADMIN" -> "Admin", "USER_MANAGER" -> "UserManager", etc.)
-            var roleNormalized = NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER");
-
+            var roleNormalized = _roleService.NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER");
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Username),
                 new Claim("utilizadorId", user.UtilizadorId.ToString()),
-                // Agora, ClaimTypes.Role terá "Admin" ou "UserManager" ou "User"
                 new Claim(ClaimTypes.Role, roleNormalized),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
@@ -73,21 +75,6 @@ namespace WebAPI.Controllers
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        // Método auxiliar para mapear os valores do banco para as roles do [Authorize]
-        private string NormalizeRole(string roleDb)
-        {
-            switch (roleDb.ToUpper())
-            {
-                case "ADMIN":
-                    return "Admin";
-                case "USER_MANAGER":
-                    return "UserManager";
-                case "USER":
-                default:
-                    return "User";
-            }
         }
     }
 

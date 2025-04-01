@@ -1,57 +1,148 @@
+using iText.Kernel.Pdf;
+using iText.Layout;
+using iText.Layout.Element;
+using iText.Layout.Properties;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Text;
-using WebAPI.Context;
-using WebAPI.Entities;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ExportController : ControllerBase
     {
-        private readonly AppDbContext _context;
-        public ExportController(AppDbContext context)
+        private readonly IRegistosPrecoRepository _registosPrecoRepository;
+        private readonly ILojaRepository _lojaRepository;
+        private readonly IProdutoRepository _produtoRepository;
+
+        public ExportController(
+            IRegistosPrecoRepository registosPrecoRepository,
+            ILojaRepository lojaRepository,
+            IProdutoRepository produtoRepository)
         {
-            _context = context;
+            _registosPrecoRepository = registosPrecoRepository;
+            _lojaRepository = lojaRepository;
+            _produtoRepository = produtoRepository;
         }
 
-        // Exporta relatório de lojas em CSV
-        [HttpGet("lojas/csv")]
-        public async Task<IActionResult> ExportLojasCsv()
+        [HttpGet("stores-report")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportStoresReport()
         {
-            var lojas = await _context.Lojas.Include(l => l.Localizacao).ToListAsync();
-            var sb = new StringBuilder();
-            sb.AppendLine("LojaId,Nome,Endereco,Cidade,Pais");
-            foreach (var loja in lojas)
+            var lojas = await _lojaRepository.GetAllWithDetailsAsync();
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+
+            using (var memoryStream = new MemoryStream())
             {
-                var cidade = loja.Localizacao?.Cidade ?? "";
-                var pais = loja.Localizacao?.Pais ?? "";
-                sb.AppendLine($"{loja.LojaId},{loja.Nome},{loja.Endereco},{cidade},{pais}");
+                var writer = new PdfWriter(memoryStream);
+                var pdf = new PdfDocument(writer);
+                var document = new Document(pdf);
+
+                document.Add(new Paragraph("Relatório de Lojas")
+                    .SetFontSize(16)
+                    .SetBold());
+                document.Add(new Paragraph(" "));
+
+                foreach (var loja in lojas)
+                {
+                    document.Add(new Paragraph($"Loja: {loja.Nome}")
+                        .SetFontSize(12)
+                        .SetBold());
+                    document.Add(new Paragraph($"Localização: {loja.Localizacao?.Cidade ?? "N/A"}, {loja.Localizacao?.Pais ?? "N/A"}"));
+                    document.Add(new Paragraph("Produtos:"));
+
+                    var lojaRegistos = registos.Where(r => r.LojaId == loja.LojaId).ToList();
+                    if (lojaRegistos.Any())
+                    {
+                        var table = new Table(UnitValue.CreatePercentArray(new float[] { 25, 25, 25, 25 }));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Produto").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Preço").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Data").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Credibilidade").SetBold()));
+
+                        foreach (var registo in lojaRegistos)
+                        {
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Produto?.Nome ?? "N/A")));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Preco.ToString("C"))));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.DataRegisto.ToString("dd/MM/yyyy"))));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Credibilidade.ToString())));
+                        }
+
+                        document.Add(table);
+                    }
+                    else
+                    {
+                        document.Add(new Paragraph("Nenhum produto registrado."));
+                    }
+
+                    document.Add(new Paragraph(" "));
+                }
+
+                document.Close();
+                var bytes = memoryStream.ToArray();
+                return File(bytes, "application/pdf", "relatorio_lojas.pdf");
             }
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            return File(bytes, "text/csv", "lojas_report.csv");
         }
 
-        // Exporta relatório de lojas em PDF (exemplo simples usando PdfSharp – requer a biblioteca PdfSharpCore)
-        [HttpGet("lojas/pdf")]
-        public async Task<IActionResult> ExportLojasPdf()
+        [HttpGet("products-report")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportProductsReport()
         {
-            var lojas = await _context.Lojas.Include(l => l.Localizacao).ToListAsync();
+            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
 
-            // Aqui, para fins de exemplo, geramos um PDF simples.
-            // Em um cenário real, você utilizaria uma biblioteca como PdfSharpCore ou QuestPDF.
-            using var ms = new MemoryStream();
-            // [Pseudo-código:] Gerar PDF com lojas e suas informações
-            // Por exemplo, usando QuestPDF:
-            // var document = Document.Create(container => { ... });
-            // document.GeneratePdf(ms);
+            using (var memoryStream = new MemoryStream())
+            {
+                var writer = new PdfWriter(memoryStream);
+                var pdf = new PdfDocument(writer);
+                var document = new Document(pdf);
 
-            // Para este exemplo, retornaremos um PDF vazio.
-            byte[] pdfBytes = ms.ToArray();
-            return File(pdfBytes, "application/pdf", "lojas_report.pdf");
+                document.Add(new Paragraph("Relatório de Produtos")
+                    .SetFontSize(16)
+                    .SetBold());
+                document.Add(new Paragraph(" "));
+
+                foreach (var produto in produtos)
+                {
+                    document.Add(new Paragraph($"Produto: {produto.Nome} ({produto.Marca ?? "N/A"})")
+                        .SetFontSize(12)
+                        .SetBold());
+                    document.Add(new Paragraph($"Categoria: {produto.Categoria?.Nome ?? "N/A"}"));
+                    document.Add(new Paragraph("Preços:"));
+
+                    var produtoRegistos = registos.Where(r => r.ProdutoId == produto.ProdutoId).ToList();
+                    if (produtoRegistos.Any())
+                    {
+                        var table = new Table(UnitValue.CreatePercentArray(new float[] { 25, 25, 25, 25 }));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Loja").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Preço").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Data").SetBold()));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Credibilidade").SetBold()));
+
+                        foreach (var registo in produtoRegistos)
+                        {
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Loja?.Nome ?? "N/A")));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Preco.ToString("C"))));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.DataRegisto.ToString("dd/MM/yyyy"))));
+                            table.AddCell(new Cell().Add(new Paragraph(registo.Credibilidade.ToString())));
+                        }
+
+                        document.Add(table);
+                    }
+                    else
+                    {
+                        document.Add(new Paragraph("Nenhum preço registrado."));
+                    }
+
+                    document.Add(new Paragraph(" "));
+                }
+
+                document.Close();
+                var bytes = memoryStream.ToArray();
+                return File(bytes, "application/pdf", "relatorio_produtos.pdf");
+            }
         }
-
-        // Endpoints para XLSX podem ser implementados de forma similar, utilizando ClosedXML ou EPPlus.
     }
 }

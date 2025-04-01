@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebAPI.Context;
 using WebAPI.Entities;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -9,67 +8,58 @@ namespace WebAPI.Controllers
     [Route("api/[controller]")]
     public class CategoriasController : ControllerBase
     {
-        private readonly AppDbContext _context;
-    
-        public CategoriasController(AppDbContext context)
+        private readonly ICategoriaRepository _categoriaRepository;
+
+        public CategoriasController(ICategoriaRepository categoriaRepository)
         {
-            _context = context;
+            _categoriaRepository = categoriaRepository;
         }
-    
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Categoria>>> GetAll()
         {
-            return await _context.Categorias.ToListAsync();
+            return Ok(await _categoriaRepository.GetAllAsync());
         }
-    
+
         [HttpGet("{id}")]
         public async Task<ActionResult<Categoria>> GetById(int id)
         {
-            var categoria = await _context.Categorias.FindAsync(id);
+            var categoria = await _categoriaRepository.GetByIdAsync(id);
             if (categoria == null) return NotFound();
             return categoria;
         }
-    
+
         [HttpPost]
         public async Task<ActionResult<Categoria>> Create(Categoria categoria)
         {
-            _context.Categorias.Add(categoria);
-            await _context.SaveChangesAsync();
+            await _categoriaRepository.AddAsync(categoria);
             return CreatedAtAction(nameof(GetById), new { id = categoria.CategoriaId }, categoria);
         }
-    
+
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, Categoria categoria)
         {
             if (id != categoria.CategoriaId) return BadRequest();
-    
-            _context.Entry(categoria).State = EntityState.Modified;
+
             try
             {
-                await _context.SaveChangesAsync();
+                await _categoriaRepository.UpdateAsync(categoria);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (KeyNotFoundException)
             {
-                if (!Exists(id)) return NotFound();
-                else throw;
+                return NotFound();
             }
             return NoContent();
         }
-    
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var categoria = await _context.Categorias.FindAsync(id);
+            var categoria = await _categoriaRepository.GetByIdAsync(id);
             if (categoria == null) return NotFound();
-    
-            _context.Categorias.Remove(categoria);
-            await _context.SaveChangesAsync();
+
+            await _categoriaRepository.DeleteAsync(categoria);
             return NoContent();
-        }
-    
-        private bool Exists(int id)
-        {
-            return _context.Categorias.Any(e => e.CategoriaId == id);
         }
     }
 }
