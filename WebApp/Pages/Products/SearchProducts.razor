@@ -1,4 +1,5 @@
 @page "/searchproducts"
+@using WebApp.Models
 @inject HttpClient Http
 
 <h3>Pesquisar Produtos</h3>
@@ -77,6 +78,7 @@ else
                 <th>Nome</th>
                 <th>Marca</th>
                 <th>Categoria</th>
+                <th>Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -87,6 +89,9 @@ else
                     <td>@prod.Nome</td>
                     <td>@prod.Marca</td>
                     <td>@prod.Categoria?.Nome</td>
+                    <td>
+                        <a href="/productdetails/@prod.ProdutoId" class="btn btn-info btn-sm">Ver Detalhes</a>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -136,7 +141,7 @@ else
 
         var query = new List<string>();
         if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
-            query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}"); // Alterado de "name" para "nome"
+            query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
         if (useCategory && searchCriteria.CategoryId.HasValue)
             query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
         if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
@@ -162,19 +167,5 @@ else
         public int? CategoryId { get; set; }
         public string Store { get; set; } = "";
         public DateTime? DateFrom { get; set; }
-    }
-
-    public class Produto
-    {
-        public int ProdutoId { get; set; }
-        public string Nome { get; set; } = "";
-        public string Marca { get; set; } = "";
-        public Categoria? Categoria { get; set; }
-    }
-
-    public class Categoria
-    {
-        public int CategoriaId { get; set; }
-        public string Nome { get; set; } = "";
     }
 }

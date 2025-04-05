@@ -21,7 +21,8 @@ else
     <div class="mb-3">
         @if (AuthService.IsAdmin || AuthService.IsManager)
         {
-            <button class="btn btn-primary" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
+            <button class="btn btn-primary me-2" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
+            <a href="/prices/new" class="btn btn-primary">Registrar Preço</a>
         }
     </div>
     
@@ -32,10 +33,7 @@ else
                 <th>Nome</th>
                 <th>Marca</th>
                 <th>Categoria</th>
-                @if (AuthService.IsAdmin || AuthService.IsManager)
-                {
-                    <th>Ações</th>
-                }
+                <th>Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -46,13 +44,14 @@ else
                     <td>@prod.Nome</td>
                     <td>@prod.Marca</td>
                     <td>@prod.Categoria?.Nome</td>
-                    @if (AuthService.IsAdmin || AuthService.IsManager)
-                    {
-                        <td>
+                    <td>
+                        <a href="/productdetails/@prod.ProdutoId" class="btn btn-info btn-sm me-2">Ver Detalhes</a>
+                        @if (AuthService.IsAdmin || AuthService.IsManager)
+                        {
                             <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(prod.ProdutoId))">Editar</button>
                             <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(prod.ProdutoId))">Excluir</button>
-                        </td>
-                    }
+                        }
+                    </td>
                 </tr>
             }
         </tbody>

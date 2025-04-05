@@ -1,0 +1,100 @@
+@page "/productdetails/{Id:int}"
+@using WebApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<PageTitle>Detalhes do Produto</PageTitle>
+
+<h3>Detalhes do Produto</h3>
+
+@if (produto == null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">@produto.Nome</h4>
+            <p class="card-text"><strong>Marca:</strong> @produto.Marca</p>
+            <p class="card-text"><strong>Descrição:</strong> @produto.Descricao</p>
+            <p class="card-text"><strong>Categoria:</strong> @produto.Categoria?.Nome</p>
+        </div>
+    </div>
+
+    <h4 class="mt-4">Registros de Preços</h4>
+    @if (registrosPrecos == null || !registrosPrecos.Any())
+    {
+        <p>Nenhum registro de preço encontrado para este produto.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Loja</th>
+                    <th>Preço</th>
+                    <th>Data</th>
+                    <th>Credibilidade</th>
+                    @if (AuthService.IsLoggedIn)
+                    {
+                        <th>Ações</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var registro in registrosPrecos)
+                {
+                    <tr>
+                        <td>@registro.LojaNome</td>
+                        <td>@registro.Preco.ToString("C")</td>
+                        <td>@registro.DataRegisto.ToString("dd/MM/yyyy")</td>
+                        <td>
+                            <span class="@GetCredibilidadeClass(registro.Credibilidade)">
+                                @(registro.Credibilidade >= 0.8m ? "Alta" : registro.Credibilidade >= 0.5m ? "Média" : "Baixa")
+                            </span>
+                        </td>
+                        @if (AuthService.IsLoggedIn)
+                        {
+                            <td>
+                                <a href="/updateprice/@registro.RegistoPrecoId" class="btn btn-sm btn-warning">Atualizar Preço</a>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <button class="btn btn-secondary mt-3" @onclick="Voltar">Voltar</button>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Produto? produto;
+    private List<RegistosPreco>? registrosPrecos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Carregar os detalhes do produto
+        produto = await Http.GetFromJsonAsync<Produto>($"api/Produtos/{Id}");
+
+        // Carregar os registros de preços
+        registrosPrecos = await Http.GetFromJsonAsync<List<RegistosPreco>>($"api/RegistosPrecos?produtoId={Id}");
+    }
+
+    private string GetCredibilidadeClass(decimal credibilidade)
+    {
+        if (credibilidade >= 0.8m) return "badge bg-success"; // Alta
+        if (credibilidade >= 0.5m) return "badge bg-warning"; // Média
+        return "badge bg-danger"; // Baixa
+    }
+
+    private void Voltar()
+    {
+        Navigation.NavigateTo("/produtos");
+    }
+}

@@ -1,24 +1,65 @@
-@page "/updateprice"
+@page "/updateprice/{RegistoPrecoId:int}"
 @using WebApp.Models
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Atualizar Preço</PageTitle>
 <h3>Atualizar Preço do Produto</h3>
 
-<EditForm Model="priceUpdate" OnValidSubmit="HandleUpdate">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="mb-3">
-        <label>ID do Registo de Preço:</label>
-        <InputNumber class="form-control" @bind-Value="priceUpdate.RegistoPrecoId" />
-    </div>
-    <div class="mb-3">
-        <label>Novo Preço:</label>
-        <InputNumber class="form-control" @bind-Value="priceUpdate.Preco" />
-    </div>
-    <button type="submit" class="btn btn-primary">Atualizar Preço</button>
-</EditForm>
+@if (!AuthService.IsLoggedIn)
+{
+    <p>Você precisa estar logado para atualizar preços.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else
+{
+    @if (priceUpdate == null)
+    {
+        <p>Carregando...</p>
+    }
+    else
+    {
+        <EditForm Model="@priceUpdate" OnValidSubmit="HandleUpdate">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="mb-3">
+                <label>Produto:</label>
+                <InputSelect class="form-control" @bind-Value="priceUpdate.ProdutoId" disabled>
+                    @if (produtos != null)
+                    {
+                        @foreach (var p in produtos)
+                        {
+                            <option value="@p.ProdutoId">@p.Nome</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+            <div class="mb-3">
+                <label>Loja:</label>
+                <InputSelect class="form-control" @bind-Value="priceUpdate.LojaId" disabled>
+                    @if (lojas != null)
+                    {
+                        @foreach (var l in lojas)
+                        {
+                            <option value="@l.LojaId">@l.Nome</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+            <div class="mb-3">
+                <label>Novo Preço:</label>
+                <InputNumber class="form-control" @bind-Value="priceUpdate.Preco" />
+            </div>
+            <div class="mb-3">
+                <label>Data:</label>
+                <InputDate class="form-control" @bind-Value="priceUpdate.DataRegisto" />
+            </div>
+            <button type="submit" class="btn btn-primary">Atualizar Preço</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
+        </EditForm>
+    }
+}
 
 @if (!string.IsNullOrEmpty(mensagem))
 {
@@ -26,20 +67,53 @@
 }
 
 @code {
-    private RegistosPreco priceUpdate = new();
+    [Parameter]
+    public int RegistoPrecoId { get; set; }
+
+    private RegistosPreco? priceUpdate;
+    private List<Produto>? produtos;
+    private List<Loja>? lojas;
     private string? mensagem;
-    
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Carregar o registro de preço existente
+        priceUpdate = await Http.GetFromJsonAsync<RegistosPreco>($"api/RegistosPrecos/{RegistoPrecoId}");
+        if (priceUpdate == null)
+        {
+            mensagem = "Registro de preço não encontrado.";
+            return;
+        }
+
+        // Carregar produtos e lojas para exibição
+        produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
+        lojas = await Http.GetFromJsonAsync<List<Loja>>("api/Lojas");
+    }
+
     private async Task HandleUpdate()
     {
+        if (priceUpdate == null) return;
+
         var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{priceUpdate.RegistoPrecoId}", priceUpdate);
         if (response.IsSuccessStatusCode)
         {
             mensagem = "Preço atualizado com sucesso!";
-            Navigation.NavigateTo("/produtos");
+            Navigation.NavigateTo($"/productdetails/{priceUpdate.ProdutoId}");
         }
         else
         {
             mensagem = "Erro ao atualizar preço.";
         }
+    }
+
+    private void Voltar()
+    {
+        Navigation.NavigateTo($"/productdetails/{priceUpdate?.ProdutoId}");
     }
 }

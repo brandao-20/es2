@@ -13,6 +13,7 @@
     
         public Produto? Produto { get; set; }
         public Loja? Loja { get; set; }
+        public string LojaNome => Loja?.Nome ?? "";
         public TipoAcao? TipoAcao { get; set; }
     }
 }
