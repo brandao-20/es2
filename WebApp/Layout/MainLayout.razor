@@ -21,7 +21,7 @@
         }
         else
         {
-            <!-- Se não estiver logado, exibe NavMenuUser básico ou nenhum menu -->
+            <!-- Se não estiver com login efetuado exibe o NavMenuUser -->
             <NavMenuUser />
         }
     </div>
@@ -31,6 +31,7 @@
             @if (AuthService.IsLoggedIn)
             {
                 <span class="welcome-text me-3">Bem-vindo, @AuthService.UserName!</span>
+                <a href="/profile" class="btn btn-outline-primary me-2">Perfil</a>
                 <button class="btn btn-outline-secondary" @onclick="HandleLogout">Logout</button>
             }
             else

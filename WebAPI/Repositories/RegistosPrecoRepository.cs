@@ -14,9 +14,9 @@ namespace WebAPI.Repositories
         {
             return await DbSet
                 .Include(r => r.Produto!)
-                .ThenInclude(p => p.Categoria!)
+                    .ThenInclude(p => p.Categoria!)
                 .Include(r => r.Loja!)
-                .ThenInclude(l => l.Localizacao!)
+                    .ThenInclude(l => l.Localizacao!)
                 .Include(r => r.Utilizador!)
                 .Include(r => r.TipoAcao!)
                 .ToListAsync();
@@ -26,13 +26,22 @@ namespace WebAPI.Repositories
         {
             return await DbSet
                 .Include(r => r.Produto!)
-                .ThenInclude(p => p.Categoria!)
+                    .ThenInclude(p => p.Categoria!)
                 .Include(r => r.Loja!)
-                .ThenInclude(l => l.Localizacao!)
+                    .ThenInclude(l => l.Localizacao!)
                 .Include(r => r.Utilizador!)
                 .Include(r => r.TipoAcao!)
                 .FirstOrDefaultAsync(r => r.RegistoPrecoId == id)
                 ?? throw new KeyNotFoundException($"RegistoPreco with ID {id} not found.");
+        }
+
+        // Implementação do novo método
+        public async Task<RegistosPreco?> GetLatestPriceAsync(int produtoId, int lojaId)
+        {
+            return await DbSet
+                .Where(r => r.ProdutoId == produtoId && r.LojaId == lojaId)
+                .OrderByDescending(r => r.DataRegisto)
+                .FirstOrDefaultAsync();
         }
     }
 }

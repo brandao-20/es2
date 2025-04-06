@@ -18,5 +18,6 @@ public partial class Produto
 
     public virtual Categoria? Categoria { get; set; } = null!;
 
+    [JsonIgnore]
     public virtual ICollection<RegistosPreco> RegistosPrecos { get; set; } = new List<RegistosPreco>();
 }

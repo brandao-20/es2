@@ -6,5 +6,6 @@ namespace WebAPI.Repositories
     {
         Task<IEnumerable<RegistosPreco>> GetAllWithDetailsAsync();
         Task<RegistosPreco> GetByIdWithDetailsAsync(int id);
+        Task<RegistosPreco?> GetLatestPriceAsync(int produtoId, int lojaId);
     }
 }

@@ -16,5 +16,6 @@ public partial class Loja
 
     public virtual Localizacao? Localizacao { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<RegistosPreco> RegistosPrecos { get; set; } = new List<RegistosPreco>();
 }

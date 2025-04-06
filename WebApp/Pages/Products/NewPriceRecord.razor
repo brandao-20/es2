@@ -3,6 +3,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Registrar Preço</PageTitle>
 <h3>Registrar Preço</h3>
@@ -18,9 +19,11 @@ else
         <DataAnnotationsValidator />
         <ValidationSummary />
 
+        <!-- Seleção de Produto -->
         <div class="mb-3">
             <label>Produto:</label>
-            <select class="form-select" @bind="newRecord.ProdutoId">
+            <select class="form-select" @bind-Value="newRecord.ProdutoId" @bind-Value:event="onchange">
+                <option value="0">Selecione um produto</option>
                 @if (produtos != null)
                 {
                     @foreach (var p in produtos)
@@ -31,9 +34,11 @@ else
             </select>
         </div>
 
+        <!-- Seleção de Loja -->
         <div class="mb-3">
             <label>Loja:</label>
-            <select class="form-select" @bind="newRecord.LojaId">
+            <select class="form-select" @bind="newRecord.LojaId" @bind:event="onchange">
+                <option value="0">Selecione uma loja</option>
                 @if (lojas != null)
                 {
                     @foreach (var l in lojas)
@@ -44,17 +49,45 @@ else
             </select>
         </div>
 
+        <!-- Novo campo: Seleção do Tipo de Ação -->
+        <div class="mb-3">
+            <label>Tipo de Ação:</label>
+            <select class="form-select" @bind="newRecord.TipoAcaoId">
+                <option value="0">Selecione um tipo de ação</option>
+                @if (tipoAcoes != null)
+                {
+                    @foreach (var acao in tipoAcoes)
+                    {
+                        <option value="@acao.TipoAcaoId">@acao.Tipo</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <!-- Campo de Preço -->
         <div class="mb-3">
             <label>Preço:</label>
             <InputNumber class="form-control" @bind-Value="newRecord.Preco" />
         </div>
 
+        <!-- Campo de Data com validação (não permite data futura) -->
         <div class="mb-3">
             <label>Data:</label>
-            <InputDate class="form-control" @bind-Value="newRecord.DataRegisto" />
+            <InputDate class="form-control" @bind-Value="newRecord.DataRegisto" max="@DateTime.Now.ToString("yyyy-MM-dd")" />
         </div>
 
-        <button type="submit" class="btn btn-primary">Registrar Preço</button>
+        <!-- Se houver um último preço registrado, exibe a informação e botão de confirmação -->
+        @if (latestRecord != null)
+        {
+            <div class="alert alert-info">
+                Último preço registrado: <strong>@latestRecord.Preco.ToString("C")</strong> em <strong>@latestRecord.DataRegisto.ToString("dd/MM/yyyy HH:mm")</strong>.
+                <br />
+                Deseja confirmar este preço?
+                <button type="button" class="btn btn-success btn-sm mt-2" @onclick="ConfirmExistingPrice">Confirmar Preço Existente</button>
+            </div>
+        }
+
+        <button type="submit" class="btn btn-primary">Registrar Novo Preço</button>
         <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
     </EditForm>
 }
@@ -65,9 +98,18 @@ else
 }
 
 @code {
+    // Modelo para o novo registro de preço
     private RegistosPreco newRecord = new RegistosPreco();
+
+    // Listas de produtos, lojas e tipos de ação
     private List<Produto>? produtos;
     private List<Loja>? lojas;
+    private List<TipoAcao>? tipoAcoes;
+
+    // Último registro de preço para o produto/loja selecionados
+    private RegistosPreco? latestRecord;
+
+    // Mensagem de feedback
     private string? message;
 
     protected override async Task OnInitializedAsync()
@@ -78,14 +120,72 @@ else
             return;
         }
 
-        // Carrega produtos e lojas já cadastrados
+        // Carrega a lista de produtos
         produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
+        // Carrega a lista de lojas
         lojas = await Http.GetFromJsonAsync<List<Loja>>("api/Lojas");
+        // Carrega a lista de tipos de ação
+        tipoAcoes = await Http.GetFromJsonAsync<List<TipoAcao>>("api/TipoAcaos");
 
-        // Define a data padrão como hoje, se não for informada
+        // Define a data padrão como hoje
         newRecord.DataRegisto = DateTime.Now;
     }
 
+    // Chamado sempre que Produto ou Loja forem alterados
+    private async Task OnProdutoOrLojaChanged(ChangeEventArgs e)
+    {
+        // Se ambos os campos forem selecionados (valor diferente de zero), verifica o último preço
+        if (newRecord.ProdutoId != 0 && newRecord.LojaId != 0)
+        {
+            try
+            {
+                var response = await Http.GetAsync($"api/RegistosPrecos/latest/{newRecord.ProdutoId}/{newRecord.LojaId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    latestRecord = await response.Content.ReadFromJsonAsync<RegistosPreco>();
+                }
+                else
+                {
+                    latestRecord = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                message = $"Erro ao verificar último preço: {ex.Message}";
+            }
+            StateHasChanged();
+        }
+    }
+
+    // Método para confirmar o preço existente
+    private async Task ConfirmExistingPrice()
+    {
+        if (latestRecord == null)
+            return;
+
+        try
+        {
+            // Chama o endpoint de confirmação passando o ID do último registro
+            var response = await Http.PostAsJsonAsync($"api/RegistosPrecos/confirm/{latestRecord.RegistoPrecoId}", new { });
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ConfirmationResponse>();
+                message = result?.message ?? "Preço confirmado com sucesso.";
+            }
+            else
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                message = $"Erro ao confirmar preço: {err}";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Erro: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
+    // Método para registrar um novo preço (submit do formulário)
     private async Task HandleSubmit()
     {
         var response = await Http.PostAsJsonAsync("api/RegistosPrecos", newRecord);
@@ -102,4 +202,10 @@ else
     }
 
     private void GoBack() => Navigation.NavigateTo("/produtos");
+
+    public class ConfirmationResponse
+    {
+        public string message { get; set; } = "";
+        public decimal credibilidade { get; set; }
+    }
 }
