@@ -16,12 +16,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Registro de serviços e fábricas
+// Registo dos serviços
 builder.Services.AddScoped<IRepositoryFactory, RepositoryFactory>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddSignalR();
 
-// Registro dos repositórios usando a fábrica
+// Registo dos repositórios
 builder.Services.AddScoped<IUtilizadorRepository>(sp =>
     sp.GetRequiredService<IRepositoryFactory>().CreateUtilizadorRepository());
 builder.Services.AddScoped<IProdutoRepository>(sp =>
@@ -41,7 +41,7 @@ builder.Services.AddScoped<ITipoUtilizadorRepository>(sp =>
 builder.Services.AddScoped<IMensagemRepository>(sp =>
     sp.GetRequiredService<IRepositoryFactory>().CreateMensagemRepository());
 
-// Configuração de controllers, Swagger e CORS
+// Configuração dos controllers, Swagger e CORS
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -52,7 +52,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5116")
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowCredentials()
+              .SetIsOriginAllowedToAllowWildcardSubdomains();
     });
 });
 
@@ -82,6 +83,19 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtIssuer,
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine($"[ERROR] Autenticação falhou: {context.Exception.Message}");
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            Console.WriteLine("[DEBUG] Token validado com sucesso.");
+            return Task.CompletedTask;
+        }
     };
 })
 .AddCookie("ExternalCookies", o =>
@@ -127,11 +141,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseRouting();
 app.UseCors("DevCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
-app.MapHub<ChatHub>("/chathub");
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapControllers();
+    endpoints.MapHub<ChatHub>("/chathub").RequireAuthorization();
+});
 
 app.Run();

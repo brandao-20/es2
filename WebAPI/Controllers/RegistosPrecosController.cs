@@ -44,13 +44,16 @@ namespace WebAPI.Controllers
             try
             {
                 bool prodExists = await _produtoRepository.ExistsAsync(registo.ProdutoId);
-                if (!prodExists) return BadRequest($"Produto {registo.ProdutoId} não existe.");
+                if (!prodExists) return BadRequest(new { message = $"Produto {registo.ProdutoId} não existe." });
 
                 bool storeExists = await _lojaRepository.ExistsAsync(registo.LojaId);
-                if (!storeExists) return BadRequest($"Loja {registo.LojaId} não existe.");
+                if (!storeExists) return BadRequest(new { message = $"Loja {registo.LojaId} não existe." });
 
                 if (registo.DataRegisto == default)
                     registo.DataRegisto = DateTime.UtcNow;
+
+                registo.Credibilidade = 1; // Valor inicial
+                registo.UtilizadorId = int.Parse(User.FindFirst("utilizadorId")?.Value ?? "0");
 
                 await _registosPrecoRepository.AddAsync(registo);
                 return CreatedAtAction(nameof(GetById), new { id = registo.RegistoPrecoId }, registo);
@@ -98,6 +101,7 @@ namespace WebAPI.Controllers
             if (registo == null) return NotFound();
 
             registo.Credibilidade = Math.Min(registo.Credibilidade + 10, 100);
+            registo.DataRegisto = DateTime.UtcNow; // Atualiza a data para refletir a confirmação
             await _registosPrecoRepository.UpdateAsync(registo);
 
             return Ok(new { message = "Preço confirmado com sucesso", credibilidade = registo.Credibilidade });

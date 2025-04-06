@@ -1,0 +1,169 @@
+@page "/chat/room/{otherUserId:int}"
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Security.Claims
+@using WebApp.Models
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+@inject WebApp.Services.AuthService AuthService
+
+<h3>Conversa</h3>
+
+@if (!isLoggedIn)
+{
+    <p>Você precisa estar logado para acessar a conversa.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else if (!isConnected)
+{
+    <p>Não foi possível conectar ao chat. Tente novamente mais tarde.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <div class="chat-container">
+        <div class="messages" style="height: 400px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px;">
+            @foreach (var msg in messages.OrderBy(m => m.DataEnvio))
+            {
+                <div class="message mb-2 @(msg.RemetenteId == userId ? "text-end" : "text-start")">
+                    <strong>@(msg.RemetenteId == userId ? "Você" : msg.Remetente?.Username ?? "Desconhecido")</strong>
+                    <small class="d-block">@msg.DataEnvio.ToString("dd/MM/yyyy HH:mm")</small>
+                    <p class="@(msg.RemetenteId == userId ? "bg-light p-2 rounded d-inline-block" : "bg-secondary text-white p-2 rounded d-inline-block")">
+                        @msg.Conteudo
+                    </p>
+                </div>
+            }
+        </div>
+        <div class="form-group mt-3">
+            <input type="text" class="form-control" @bind="newMessage" @bind:event="oninput" placeholder="Digite sua mensagem..." />
+            <button class="btn btn-primary mt-2" @onclick="SendMessage" 
+                    disabled="@(string.IsNullOrEmpty(newMessage))">
+                Enviar
+            </button>
+        </div>
+    </div>
+
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">← Voltar</button>
+}
+
+@code {
+    [Parameter] public int otherUserId { get; set; } // ID do destinatário
+    private bool isLoggedIn;
+    private bool isConnected;
+    private int userId;
+    private HubConnection hubConnection;
+    private List<Mensagem> messages = new List<Mensagem>();
+    private string newMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Verificar login
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        if (string.IsNullOrEmpty(token))
+        {
+            isLoggedIn = false;
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        isLoggedIn = true;
+
+        // Decodifica token e extrai userId
+        var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwtToken = tokenHandler.ReadJwtToken(token);
+        userId = int.Parse(jwtToken.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value ?? "0");
+
+        // Configurar a autorização
+        Http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        // Configurar SignalR
+        var hubUrl = "http://localhost:5000/chathub";
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl, options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult(token);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        // Receber mensagens
+        hubConnection.On<string, int, int, string, DateTime>("ReceiveMessage", (remetenteUsername, remetenteId, destinatarioId, conteudo, dataEnvio) =>
+        {
+            // Só adiciona a mensagem se for relevante para esta conversa
+            // ou seja, se (remetente == userId e destinatario == otherUserId)
+            // ou (remetente == otherUserId e destinatario == userId)
+            if ((remetenteId == userId && destinatarioId == otherUserId) ||
+                (remetenteId == otherUserId && destinatarioId == userId))
+            {
+                messages.Add(new Mensagem
+                {
+                    RemetenteId = remetenteId,
+                    DestinatarioId = destinatarioId,
+                    Remetente = new Utilizador { Username = remetenteUsername },
+                    Conteudo = conteudo,
+                    DataEnvio = dataEnvio
+                });
+                InvokeAsync(StateHasChanged);
+            }
+        });
+
+        // Tenta conectar
+        try
+        {
+            await hubConnection.StartAsync();
+            Console.WriteLine("[DEBUG] Conexão com SignalR estabelecida com sucesso.");
+            isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Erro ao conectar ao SignalR: {ex.Message}");
+            isConnected = false;
+            return;
+        }
+
+        // Carregar histórico de mensagens apenas entre userId e otherUserId
+        // Você pode criar um endpoint que retorne só as msgs desse par.
+        // Exemplo: GET api/Mensagens/conversation?u1=...&u2=...
+        // Ou filtrar no front-end.
+        // Aqui, para simplificar, vamos carregar TODAS do userId e filtrar:
+        try
+        {
+            var allMyMsgs = await Http.GetFromJsonAsync<List<Mensagem>>($"api/Mensagens/user/{userId}") 
+                           ?? new List<Mensagem>();
+            // Filtra as mensagens só entre (userId <-> otherUserId)
+            messages = allMyMsgs.Where(m =>
+                (m.RemetenteId == userId && m.DestinatarioId == otherUserId) ||
+                (m.RemetenteId == otherUserId && m.DestinatarioId == userId)
+            ).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Erro ao carregar histórico: {ex.Message}");
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrEmpty(newMessage))
+        {
+            // Envia ao otherUserId
+            await hubConnection.SendAsync("SendMessage", otherUserId, newMessage);
+            newMessage = "";
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/chat");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
+        {
+            await hubConnection.StopAsync();
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

@@ -5,9 +5,9 @@ using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // Todas as ações requerem autenticação
+    [ApiController]
+    [Authorize]
     public class MensagensController : ControllerBase
     {
         private readonly IMensagemRepository _mensagemRepository;
@@ -17,60 +17,42 @@ namespace WebAPI.Controllers
             _mensagemRepository = mensagemRepository;
         }
 
-        [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<IEnumerable<Mensagem>>> GetAll()
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<List<Mensagem>>> GetMessagesByUser(int userId)
         {
-            return Ok(await _mensagemRepository.GetAllWithDetailsAsync());
-        }
-
-        [HttpGet("my-messages")]
-        public async Task<ActionResult<IEnumerable<Mensagem>>> GetMyMessages()
-        {
-            var userId = int.Parse(User.FindFirst("utilizadorId")?.Value ?? "0");
-            return Ok(await _mensagemRepository.GetByUserIdAsync(userId));
+            var mensagens = await _mensagemRepository.GetByUserIdAsync(userId);
+            return Ok(mensagens);
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<Mensagem>> GetById(int id)
+        public async Task<ActionResult<Mensagem>> GetMessage(int id)
         {
-            try
-            {
-                var mensagem = await _mensagemRepository.GetByIdAsync(id);
-                return Ok(mensagem);
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
+            var mensagem = await _mensagemRepository.GetByIdAsync(id);
+            return Ok(mensagem);
+        }
+
+        [HttpGet("all")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<ActionResult<List<Mensagem>>> GetAllMessages()
+        {
+            var mensagens = await _mensagemRepository.GetAllWithDetailsAsync();
+            return Ok(mensagens);
         }
 
         [HttpPost]
-        public async Task<ActionResult<Mensagem>> SendMessage([FromBody] Mensagem mensagem)
+        public async Task<ActionResult<Mensagem>> CreateMessage(Mensagem mensagem)
         {
-            var userId = int.Parse(User.FindFirst("utilizadorId")?.Value ?? "0");
-            mensagem.RemetenteId = userId;
-            mensagem.DataEnvio = DateTime.UtcNow;
-
             await _mensagemRepository.AddAsync(mensagem);
-            return CreatedAtAction(nameof(GetById), new { id = mensagem.MensagemId }, mensagem);
+            return CreatedAtAction(nameof(GetMessage), new { id = mensagem.MensagemId }, mensagem);
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Delete(int id)
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> DeleteMessage(int id)
         {
-            try
-            {
-                var mensagem = await _mensagemRepository.GetByIdAsync(id);
-                await _mensagemRepository.DeleteAsync(mensagem);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
+            var mensagem = await _mensagemRepository.GetByIdAsync(id);
+            await _mensagemRepository.DeleteAsync(mensagem);
+            return NoContent();
         }
     }
 }

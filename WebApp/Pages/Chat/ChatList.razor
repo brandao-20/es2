@@ -1,0 +1,159 @@
+@page "/chat"
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject WebApp.Services.AuthService AuthService
+@using System.Security.Claims
+@using WebApp.Models
+
+<h3>Lista de Conversas / Contatos</h3>
+
+@if (!isLoggedIn)
+{
+    <p>Você precisa estar logado para ver esta lista.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    @if (isAdmin)
+    {
+        <p>Você é admin. Segue a lista de todos os utilizadores (exceto você mesmo):</p>
+        @if (users == null)
+        {
+            <p>Carregando...</p>
+        }
+        else if (users.Count == 0)
+        {
+            <p>Nenhum utilizador encontrado.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr><th>ID</th><th>Nome</th><th>Ações</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var u in users)
+                {
+                    <tr>
+                        <td>@u.UtilizadorId</td>
+                        <td>@u.Username</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" @onclick="() => AbrirConversa(u.UtilizadorId)">
+                                Conversar
+                            </button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+    else
+    {
+        <p>Você é utilizador comum. Segue a lista de admins disponíveis:</p>
+        @if (adminUsers == null)
+        {
+            <p>Carregando...</p>
+        }
+        else if (adminUsers.Count == 0)
+        {
+            <p>Nenhum admin encontrado.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr><th>ID</th><th>Nome</th><th>Ações</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var a in adminUsers)
+                {
+                    <tr>
+                        <td>@a.UtilizadorId</td>
+                        <td>@a.Username</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" @onclick="() => AbrirConversa(a.UtilizadorId)">
+                                Conversar
+                            </button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+
+@code {
+    private bool isLoggedIn;
+    private bool isAdmin;
+    private int userId;
+
+    // Lista de utilizadores (se admin)
+    private List<Utilizador>? users;
+    // Lista de admins (se não admin)
+    private List<Utilizador>? adminUsers;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        if (string.IsNullOrEmpty(token))
+        {
+            isLoggedIn = false;
+            return;
+        }
+        isLoggedIn = true;
+
+        // Extrai claims do token
+        var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwtToken = tokenHandler.ReadJwtToken(token);
+        userId = int.Parse(jwtToken.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value ?? "0");
+
+        // Verifica se é admin
+        isAdmin = jwtToken.Claims.Any(c =>
+            (c.Type == "role" || c.Type == ClaimTypes.Role) &&
+            c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+        );
+
+        // Carrega lista de contatos
+        Http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var allUsers = await Http.GetFromJsonAsync<List<Utilizador>>("api/Utilizadores") ?? new List<Utilizador>();
+
+        if (isAdmin)
+        {
+            // Se sou admin, vejo todos os utilizador exceto eu
+            users = allUsers.Where(u => u.UtilizadorId != userId).ToList();
+        }
+        else
+        {
+            // Se sou user, vejo só admins
+            adminUsers = allUsers
+                .Where(u => 
+                    u.TipoUtilizador != null &&
+                    u.TipoUtilizador.Tipo.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
+        }
+    }
+
+    private void AbrirConversa(int otherUserId)
+    {
+        // Navega para /chat/room/ID
+        Navigation.NavigateTo($"/chat/room/{otherUserId}");
+    }
+
+    private void GoBack()
+    {
+        if (AuthService.Role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            Navigation.NavigateTo("/homeadmin");
+        else if (AuthService.Role.Equals("USER_MANAGER", StringComparison.OrdinalIgnoreCase))
+            Navigation.NavigateTo("/homeusermanager");
+        else
+            Navigation.NavigateTo("/homeuser");
+    }
+}

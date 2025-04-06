@@ -4,7 +4,7 @@ namespace WebAPI.Repositories
 {
     public interface IMensagemRepository : IRepository<Mensagem>
     {
-        Task<IEnumerable<Mensagem>> GetAllWithDetailsAsync();
-        Task<IEnumerable<Mensagem>> GetByUserIdAsync(int userId); // Para histórico do usuário
+        Task<List<Mensagem>> GetAllWithDetailsAsync();
+        Task<List<Mensagem>> GetByUserIdAsync(int userId); // Para histórico do utilizador
     }
 }
