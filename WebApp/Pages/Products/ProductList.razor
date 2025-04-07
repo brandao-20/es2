@@ -22,7 +22,7 @@ else
         @if (AuthService.IsAdmin || AuthService.IsManager)
         {
             <button class="btn btn-primary me-2" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
-            <a href="/prices/new" class="btn btn-primary">Registrar Preço</a>
+            <a href="/prices/new" class="btn btn-primary">Registar Preço</a>
         }
     </div>
     
@@ -56,10 +56,21 @@ else
             }
         </tbody>
     </table>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(!CanGoPrevious)">Anterior</button>
+        <span>Página @currentPage de @totalPages</span>
+        <button class="btn btn-secondary" @onclick="NextPage" disabled="@(!CanGoNext)">Próximo</button>
+    </div>
 }
 
 @code {
     private List<Produto>? produtos;
+
+    // Controle de paginação
+    private int currentPage = 1;
+    private int pageSize = 5; 
+    private int totalPages = 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -68,18 +79,62 @@ else
 
     private async Task CarregarProdutos()
     {
-        produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
+        var response = await Http.GetAsync($"api/Produtos?page={currentPage}&pageSize={pageSize}");
+        if (response.IsSuccessStatusCode)
+        {
+            produtos = await response.Content.ReadFromJsonAsync<List<Produto>>();
+
+            if (response.Headers.TryGetValues("X-Total-Count", out var values))
+            {
+                if (int.TryParse(values.FirstOrDefault(), out int totalItems))
+                {
+                    totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+                }
+            }
+            else
+            {
+                totalPages = 1;
+            }
+
+            // LÓGICA DE FALLBACK
+            // Se a página atual ficar maior que o total de páginas (ex.: deletou um item e a page 2 não existe mais),
+            // volte para a última página existente e recarregue.
+            if (currentPage > totalPages && totalPages > 0)
+            {
+                currentPage = totalPages;
+                await CarregarProdutos(); 
+                return; 
+            }
+        }
+        else
+        {
+            produtos = new List<Produto>();
+        }
     }
 
-    private void IrParaCriarProduto()
+    private async Task PreviousPage()
     {
-        Navigation.NavigateTo("/produtos/novo");
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await CarregarProdutos();
+        }
     }
 
-    private void Editar(int produtoId)
+    private async Task NextPage()
     {
-        Navigation.NavigateTo($"/produtos/editar/{produtoId}");
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await CarregarProdutos();
+        }
     }
+
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
+
+    private void IrParaCriarProduto() => Navigation.NavigateTo("/produtos/novo");
+    private void Editar(int produtoId) => Navigation.NavigateTo($"/produtos/editar/{produtoId}");
 
     private async Task Excluir(int produtoId)
     {
@@ -90,10 +145,6 @@ else
         if (response.IsSuccessStatusCode)
         {
             await CarregarProdutos();
-        }
-        else
-        {
-            // Tratar erro conforme necessário
         }
     }
 }

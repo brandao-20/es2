@@ -23,48 +23,107 @@ else
         </div>
     </div>
 
-    <h4 class="mt-4">Registros de Preços</h4>
-    @if (registrosPrecos == null || !registrosPrecos.Any())
+    <h4 class="mt-4">Registos de Preços</h4>
+
+    @if (registosPrecos == null || registosPrecos.Count == 0)
     {
-        <p>Nenhum registro de preço encontrado para este produto.</p>
+        <p>Nenhum registo de preço encontrado para este produto.</p>
     }
     else
     {
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Loja</th>
-                    <th>Preço</th>
-                    <th>Data</th>
-                    <th>Credibilidade</th>
-                    @if (AuthService.IsLoggedIn)
-                    {
-                        <th>Ações</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var registro in registrosPrecos)
-                {
+        <div class="mb-3">
+            <!-- Botão para alternar entre 'Mais Recentes' e 'Histórico Completo' -->
+            <button class="btn btn-secondary" @onclick="ToggleHistory">
+                @(showHistory ? "Exibir apenas preços mais recentes" : "Ver Histórico Completo")
+            </button>
+        </div>
+
+        <!-- Lógica: se showHistory == true, exibe todos; senão, exibe só o mais recente por loja -->
+        @if (showHistory)
+        {
+            <table class="table table-striped">
+                <thead>
                     <tr>
-                        <td>@registro.LojaNome</td>
-                        <td>@registro.Preco.ToString("C")</td>
-                        <td>@registro.DataRegisto.ToString("dd/MM/yyyy")</td>
-                        <td>
-                            <span class="@GetCredibilidadeClass(registro.Credibilidade)">
-                                @(registro.Credibilidade >= 0.8m ? "Alta" : registro.Credibilidade >= 0.5m ? "Média" : "Baixa")
-                            </span>
-                        </td>
+                        <th>Loja</th>
+                        <th>Preço</th>
+                        <th>Data</th>
+                        <th>Credibilidade</th>
                         @if (AuthService.IsLoggedIn)
                         {
-                            <td>
-                                <a href="/updateprice/@registro.RegistoPrecoId" class="btn btn-sm btn-warning">Atualizar Preço</a>
-                            </td>
+                            <th>Ações</th>
                         }
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var registo in registosPrecos.OrderByDescending(r => r.DataRegisto))
+                    {
+                        <tr>
+                            <td>@registo.LojaNome</td>
+                            <td>@registo.Preco.ToString("C")</td>
+                            <td>@registo.DataRegisto.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <span class="@GetCredibilidadeClass(registo.Credibilidade)">
+                                    @(registo.Credibilidade >= 0.8m ? "Alta" 
+                                      : registo.Credibilidade >= 0.5m ? "Média" 
+                                      : "Baixa")
+                                </span>
+                            </td>
+                            @if (AuthService.IsLoggedIn)
+                            {
+                                <td>
+                                    <a href="/updateprice/@registo.RegistoPrecoId" class="btn btn-sm btn-warning">
+                                        Atualizar Preço
+                                    </a>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <!-- Exibe apenas o mais recente de cada loja -->
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Loja</th>
+                        <th>Preço</th>
+                        <th>Data</th>
+                        <th>Credibilidade</th>
+                        @if (AuthService.IsLoggedIn)
+                        {
+                            <th>Ações</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var registo in DistinctByLojaRegistos)
+                    {
+                        <tr>
+                            <td>@registo.LojaNome</td>
+                            <td>@registo.Preco.ToString("C")</td>
+                            <td>@registo.DataRegisto.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <span class="@GetCredibilidadeClass(registo.Credibilidade)">
+                                    @(registo.Credibilidade >= 0.8m ? "Alta" 
+                                      : registo.Credibilidade >= 0.5m ? "Média" 
+                                      : "Baixa")
+                                </span>
+                            </td>
+                            @if (AuthService.IsLoggedIn)
+                            {
+                                <td>
+                                    <a href="/updateprice/@registo.RegistoPrecoId" class="btn btn-sm btn-warning">
+                                        Atualizar Preço
+                                    </a>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     }
 
     <button class="btn btn-secondary mt-3" @onclick="Voltar">Voltar</button>
@@ -75,15 +134,43 @@ else
     public int Id { get; set; }
 
     private Produto? produto;
-    private List<RegistosPreco>? registrosPrecos;
+    private List<RegistosPreco>? registosPrecos;
+
+    // Propriedade para agrupar e exibir só o mais recente por loja
+    private List<RegistosPreco> DistinctByLojaRegistos = new();
+    private bool showHistory = false;
 
     protected override async Task OnInitializedAsync()
     {
+        // Se quiser forçar login, descomente
+        // if (!AuthService.ValidateToken()) { ... }
+
         // Carregar os detalhes do produto
         produto = await Http.GetFromJsonAsync<Produto>($"api/Produtos/{Id}");
 
-        // Carregar os registros de preços
-        registrosPrecos = await Http.GetFromJsonAsync<List<RegistosPreco>>($"api/RegistosPrecos?produtoId={Id}");
+        // Carregar TODOS os registos de preço deste produto
+        // (por ex.: GET /api/RegistosPrecos?produtoId=??? -> você teria que adaptar o endpoint 
+        //           para filtrar por produtoId. Se não tiver esse endpoint, 
+        //           você pode filtrar no front, mas seria preciso baixar tudo.)
+        var allRegistos = await Http.GetFromJsonAsync<List<RegistosPreco>>($"api/RegistosPrecos") 
+                            ?? new List<RegistosPreco>();
+
+        // Filtra só os registos do produto atual
+        registosPrecos = allRegistos
+            .Where(r => r.ProdutoId == Id)
+            .ToList();
+
+        // Monta a lista "DistinctByLojaRegistos" com o mais recente por loja
+        DistinctByLojaRegistos = registosPrecos
+            .GroupBy(r => r.LojaId)
+            .Select(g => g.OrderByDescending(x => x.DataRegisto).First())
+            .OrderByDescending(r => r.DataRegisto)
+            .ToList();
+    }
+
+    private void ToggleHistory()
+    {
+        showHistory = !showHistory;
     }
 
     private string GetCredibilidadeClass(decimal credibilidade)

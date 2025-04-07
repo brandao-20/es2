@@ -4,6 +4,7 @@ using iText.Layout.Element;
 using iText.Layout.Properties;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
@@ -13,136 +14,100 @@ namespace WebAPI.Controllers
     [Authorize]
     public class ExportController : ControllerBase
     {
-        private readonly IRegistosPrecoRepository _registosPrecoRepository;
         private readonly ILojaRepository _lojaRepository;
         private readonly IProdutoRepository _produtoRepository;
+        private readonly IRegistosPrecoRepository _registosPrecoRepository;
 
         public ExportController(
-            IRegistosPrecoRepository registosPrecoRepository,
             ILojaRepository lojaRepository,
-            IProdutoRepository produtoRepository)
+            IProdutoRepository produtoRepository,
+            IRegistosPrecoRepository registosPrecoRepository)
         {
-            _registosPrecoRepository = registosPrecoRepository;
             _lojaRepository = lojaRepository;
             _produtoRepository = produtoRepository;
+            _registosPrecoRepository = registosPrecoRepository;
         }
 
-        [HttpGet("stores-report")]
+        // Exporta Relatório Geral de Lojas em CSV
+        [HttpGet("lojas/csv")]
         [Authorize(Roles = "Admin,UserManager")]
-        public async Task<IActionResult> ExportStoresReport()
+        public async Task<IActionResult> ExportLojasCsv()
         {
             var lojas = await _lojaRepository.GetAllWithDetailsAsync();
-            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+            var sb = new StringBuilder();
+            sb.AppendLine("Loja;Endereco;Cidade;Pais");
 
-            using (var memoryStream = new MemoryStream())
+            foreach (var loja in lojas)
             {
-                var writer = new PdfWriter(memoryStream);
-                var pdf = new PdfDocument(writer);
-                var document = new Document(pdf);
-
-                document.Add(new Paragraph("Relatório de Lojas")
-                    .SetFontSize(16)
-                    .SetBold());
-                document.Add(new Paragraph(" "));
-
-                foreach (var loja in lojas)
-                {
-                    document.Add(new Paragraph($"Loja: {loja.Nome}")
-                        .SetFontSize(12)
-                        .SetBold());
-                    document.Add(new Paragraph($"Localização: {loja.Localizacao?.Cidade ?? "N/A"}, {loja.Localizacao?.Pais ?? "N/A"}"));
-                    document.Add(new Paragraph("Produtos:"));
-
-                    var lojaRegistos = registos.Where(r => r.LojaId == loja.LojaId).ToList();
-                    if (lojaRegistos.Any())
-                    {
-                        var table = new Table(UnitValue.CreatePercentArray(new float[] { 25, 25, 25, 25 }));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Produto").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Preço").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Data").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Credibilidade").SetBold()));
-
-                        foreach (var registo in lojaRegistos)
-                        {
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Produto?.Nome ?? "N/A")));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Preco.ToString("C"))));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.DataRegisto.ToString("dd/MM/yyyy"))));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Credibilidade.ToString())));
-                        }
-
-                        document.Add(table);
-                    }
-                    else
-                    {
-                        document.Add(new Paragraph("Nenhum produto registrado."));
-                    }
-
-                    document.Add(new Paragraph(" "));
-                }
-
-                document.Close();
-                var bytes = memoryStream.ToArray();
-                return File(bytes, "application/pdf", "relatorio_lojas.pdf");
+                var cidade = loja.Localizacao?.Cidade ?? "";
+                var pais = loja.Localizacao?.Pais ?? "";
+                sb.AppendLine($"{loja.Nome};{loja.Endereco};{cidade};{pais}");
             }
+
+            var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return File(csvBytes, "text/csv", "relatorio_lojas.csv");
         }
 
-        [HttpGet("products-report")]
+        // Exporta Relatório Geral de Lojas em PDF
+        [HttpGet("lojas/pdf")]
         [Authorize(Roles = "Admin,UserManager")]
-        public async Task<IActionResult> ExportProductsReport()
+        public async Task<IActionResult> ExportLojasPdf()
+        {
+            var lojas = await _lojaRepository.GetAllWithDetailsAsync();
+
+            using var memoryStream = new MemoryStream();
+            var writer = new PdfWriter(memoryStream);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
+
+            document.Add(new Paragraph("Relatório de Lojas")
+                .SetFontSize(16)
+                .SetBold());
+            document.Add(new Paragraph(" "));
+
+            foreach (var loja in lojas)
+            {
+                document.Add(new Paragraph($"Loja: {loja.Nome}")
+                    .SetFontSize(12)
+                    .SetBold());
+                document.Add(new Paragraph($"Endereço: {loja.Endereco}"));
+                document.Add(new Paragraph($"Localização: {loja.Localizacao?.Cidade ?? "N/A"}, {loja.Localizacao?.Pais ?? "N/A"}"));
+                document.Add(new Paragraph(" "));
+            }
+
+            document.Close();
+            var pdfBytes = memoryStream.ToArray();
+            return File(pdfBytes, "application/pdf", "relatorio_lojas.pdf");
+        }
+
+        // Exporta Relatório Geral de Produtos em PDF
+        [HttpGet("produtos/pdf")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportProdutosPdf()
         {
             var produtos = await _produtoRepository.GetAllWithDetailsAsync();
-            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
 
-            using (var memoryStream = new MemoryStream())
+            using var memoryStream = new MemoryStream();
+            var writer = new PdfWriter(memoryStream);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
+
+            document.Add(new Paragraph("Relatório de Produtos")
+                .SetFontSize(16)
+                .SetBold());
+            document.Add(new Paragraph(" "));
+
+            foreach (var p in produtos)
             {
-                var writer = new PdfWriter(memoryStream);
-                var pdf = new PdfDocument(writer);
-                var document = new Document(pdf);
-
-                document.Add(new Paragraph("Relatório de Produtos")
-                    .SetFontSize(16)
-                    .SetBold());
+                document.Add(new Paragraph($"Produto: {p.Nome}").SetBold());
+                document.Add(new Paragraph($"Marca: {p.Marca}"));
+                document.Add(new Paragraph($"Categoria: {p.Categoria?.Nome ?? "N/A"}"));
                 document.Add(new Paragraph(" "));
-
-                foreach (var produto in produtos)
-                {
-                    document.Add(new Paragraph($"Produto: {produto.Nome} ({produto.Marca ?? "N/A"})")
-                        .SetFontSize(12)
-                        .SetBold());
-                    document.Add(new Paragraph($"Categoria: {produto.Categoria?.Nome ?? "N/A"}"));
-                    document.Add(new Paragraph("Preços:"));
-
-                    var produtoRegistos = registos.Where(r => r.ProdutoId == produto.ProdutoId).ToList();
-                    if (produtoRegistos.Any())
-                    {
-                        var table = new Table(UnitValue.CreatePercentArray(new float[] { 25, 25, 25, 25 }));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Loja").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Preço").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Data").SetBold()));
-                        table.AddHeaderCell(new Cell().Add(new Paragraph("Credibilidade").SetBold()));
-
-                        foreach (var registo in produtoRegistos)
-                        {
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Loja?.Nome ?? "N/A")));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Preco.ToString("C"))));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.DataRegisto.ToString("dd/MM/yyyy"))));
-                            table.AddCell(new Cell().Add(new Paragraph(registo.Credibilidade.ToString())));
-                        }
-
-                        document.Add(table);
-                    }
-                    else
-                    {
-                        document.Add(new Paragraph("Nenhum preço registrado."));
-                    }
-
-                    document.Add(new Paragraph(" "));
-                }
-
-                document.Close();
-                var bytes = memoryStream.ToArray();
-                return File(bytes, "application/pdf", "relatorio_produtos.pdf");
             }
+
+            document.Close();
+            var pdfBytes = memoryStream.ToArray();
+            return File(pdfBytes, "application/pdf", "relatorio_produtos.pdf");
         }
     }
 }

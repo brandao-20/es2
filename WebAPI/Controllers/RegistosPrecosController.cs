@@ -55,13 +55,13 @@ namespace WebAPI.Controllers
             return Ok(adjusted);
         }
 
-        // Novo endpoint: Retorna o último preço registrado para um Produto e uma Loja
+        // Novo endpoint: Retorna o último preço registado para um Produto e uma Loja
         [HttpGet("latest/{produtoId:int}/{lojaId:int}")]
         public async Task<ActionResult<RegistosPreco>> GetLatestPrice(int produtoId, int lojaId)
         {
             var latest = await _registosPrecoRepository.GetLatestPriceAsync(produtoId, lojaId);
             if (latest == null)
-                return NotFound(new { message = "Nenhum preço registrado para este produto nesta loja." });
+                return NotFound(new { message = "Nenhum preço registado para este produto nesta loja." });
             return Ok(latest);
         }
 
@@ -105,7 +105,7 @@ namespace WebAPI.Controllers
         public async Task<IActionResult> Update(int id, RegistosPreco registo)
         {
             if (id != registo.RegistoPrecoId)
-                return BadRequest("ID do registro não coincide.");
+                return BadRequest("ID do registo não coincide.");
 
             // Validação: DataRegisto não pode ser futura
             if (registo.DataRegisto > DateTime.UtcNow)
@@ -117,7 +117,7 @@ namespace WebAPI.Controllers
             }
             catch (KeyNotFoundException)
             {
-                return NotFound("Registro de preço não encontrado.");
+                return NotFound("Registo de preço não encontrado.");
             }
             return NoContent();
         }
@@ -128,7 +128,7 @@ namespace WebAPI.Controllers
         {
             var registo = await _registosPrecoRepository.GetByIdAsync(id);
             if (registo == null)
-                return NotFound("Registro de preço não encontrado.");
+                return NotFound("Registo de preço não encontrado.");
 
             await _registosPrecoRepository.DeleteAsync(registo);
             return NoContent();
@@ -140,7 +140,7 @@ namespace WebAPI.Controllers
         {
             var registo = await _registosPrecoRepository.GetByIdAsync(id);
             if (registo == null)
-                return NotFound("Registro de preço não encontrado.");
+                return NotFound("Registo de preço não encontrado.");
 
             registo.Credibilidade = Math.Min(registo.Credibilidade + 10, 100);
             registo.DataRegisto = DateTime.UtcNow; // Atualiza a data para refletir a confirmação

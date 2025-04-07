@@ -22,10 +22,25 @@ namespace WebAPI.Controllers
             _categoriaRepository = categoriaRepository;
         }
 
+        // GET: api/Produtos?page=1&pageSize=5
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Produto>>> GetAll()
+        public async Task<ActionResult<IEnumerable<Produto>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
+
+            // Conta quantos produtos existem
+            var totalItems = await _produtoRepository.CountAsync();
+
+            // Calcula quantos pular
+            var skip = (page - 1) * pageSize;
+
+            // Busca apenas os itens da página
+            var produtos = await _produtoRepository.GetPagedWithDetailsAsync(skip, pageSize);
+
+            // Retorna no header o total de itens
+            Response.Headers["X-Total-Count"] = totalItems.ToString();
+
             return Ok(produtos);
         }
 
@@ -46,9 +61,7 @@ namespace WebAPI.Controllers
 
             bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
             if (!categoryExists)
-            {
                 return BadRequest($"A categoria {produto.CategoriaId} não existe.");
-            }
 
             await _produtoRepository.AddAsync(produto);
             return CreatedAtAction(nameof(GetById), new { id = produto.ProdutoId }, produto);
@@ -63,9 +76,7 @@ namespace WebAPI.Controllers
 
             bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
             if (!categoryExists)
-            {
                 return BadRequest($"A categoria {produto.CategoriaId} não existe.");
-            }
 
             try
             {
@@ -90,6 +101,7 @@ namespace WebAPI.Controllers
             return NoContent();
         }
 
+        // Endpoint de pesquisa (opcional, não afeta paginação)
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<Produto>>> Search(
             [FromQuery] string? nome,
@@ -97,27 +109,21 @@ namespace WebAPI.Controllers
             [FromQuery] string? store,
             [FromQuery] DateTime? dateFrom)
         {
-            // Log para depurar os valores recebidos
             Console.WriteLine($"[DEBUG] Pesquisa de produtos - Nome: '{nome}', CategoriaId: {categoriaId}, Store: '{store}', DateFrom: {dateFrom}");
+            Expression<Func<Produto, bool>> predicate = p => true;
 
-            // Criar a expressão de filtro
-            Expression<Func<Produto, bool>> predicate = p => true; // Começa com um filtro que aceita todos os produtos
-
-            // Adicionar filtro por nome, se fornecido
             if (!string.IsNullOrWhiteSpace(nome))
             {
                 string nomeLower = nome.ToLower();
                 predicate = p => p.Nome.ToLower().Contains(nomeLower);
             }
 
-            // Adicionar filtro por categoria, se fornecido
             if (categoriaId.HasValue)
             {
                 Expression<Func<Produto, bool>> categoriaPredicate = p => p.CategoriaId == categoriaId.Value;
                 predicate = predicate.And(categoriaPredicate);
             }
 
-            // Adicionar filtro por loja, se fornecido (requer join com RegistosPreco e Loja)
             if (!string.IsNullOrWhiteSpace(store))
             {
                 Expression<Func<Produto, bool>> storePredicate = p =>
@@ -125,7 +131,6 @@ namespace WebAPI.Controllers
                 predicate = predicate.And(storePredicate);
             }
 
-            // Adicionar filtro por data, se fornecido (requer join com RegistosPreco)
             if (dateFrom.HasValue)
             {
                 Expression<Func<Produto, bool>> datePredicate = p =>

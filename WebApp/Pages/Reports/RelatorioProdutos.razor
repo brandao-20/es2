@@ -1,6 +1,8 @@
 @page "/relatorioprodutos"
 @using System.Net.Http.Json
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Relatório de Produtos</PageTitle>
 <h3>Relatório de Produtos</h3>
@@ -32,7 +34,7 @@ else
                         {
                             <tr>
                                 <td>@loja.LojaNome</td>
-                                <td>@loja.LatestPrice</td>
+                                <td>@loja.LatestPrice.ToString("C")</td>
                                 <td>@loja.LatestDate.ToString("g")</td>
                             </tr>
                         }
@@ -45,12 +47,17 @@ else
 
 @code {
     private List<ProdutoReportDto>? produtosReport;
-    
+
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         produtosReport = await Http.GetFromJsonAsync<List<ProdutoReportDto>>("api/Relatorios/produtos");
     }
-    
+
     public class ProdutoReportDto
     {
         public int ProdutoId { get; set; }
@@ -58,7 +65,7 @@ else
         public string? Categoria { get; set; }
         public List<LojaPriceDto> Lojas { get; set; } = new();
     }
-    
+
     public class LojaPriceDto
     {
         public int LojaId { get; set; }

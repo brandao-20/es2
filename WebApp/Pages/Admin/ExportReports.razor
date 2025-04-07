@@ -1,25 +1,72 @@
 @page "/exportreports"
 @inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Exportar Relatórios</PageTitle>
 
 <h3>Exportar Relatórios</h3>
-<div>
-    <button class="btn btn-primary" @onclick="ExportCsv">Exportar Lojas em CSV</button>
-    <button class="btn btn-secondary" @onclick="ExportPdf">Exportar Lojas em PDF</button>
+
+<div class="mb-3">
+    <label for="reportSelect">Selecione o relatório:</label>
+    <select id="reportSelect" class="form-select" @bind="selectedReport">
+        <option value="stores">Relatório Geral de Lojas</option>
+        <option value="products">Relatório Geral de Produtos</option>
+        <!-- Futuramente, você pode adicionar outras opções, como relatório específico por loja ou produto -->
+    </select>
+</div>
+
+<div class="mb-3">
+    <button class="btn btn-primary me-2" @onclick="ExportPdf">Exportar PDF</button>
+    <button class="btn btn-secondary" @onclick="ExportCsv">Exportar CSV</button>
 </div>
 
 @code {
-    private async Task ExportCsv()
-    {
-        var csvData = await Http.GetByteArrayAsync("api/Export/lojas/csv");
-        await JS.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.csv", "text/csv", csvData);
-    }
+    // Valor inicial: relatório de lojas
+    private string selectedReport = "stores";
 
     private async Task ExportPdf()
     {
-        var pdfData = await Http.GetByteArrayAsync("api/Export/lojas/pdf");
-        await JS.InvokeVoidAsync("downloadFileFromBytes", "lojas_report.pdf", "application/pdf", pdfData);
+        // Define o endpoint conforme o relatório selecionado.
+        // Observe que os endpoints devem estar implementados no backend.
+        string endpoint = selectedReport switch
+        {
+            "stores" => "api/Export/stores-report",
+            "products" => "api/Export/products-report",
+            _ => "api/Export/stores-report"
+        };
+
+        try
+        {
+            var pdfData = await Http.GetByteArrayAsync(endpoint);
+            // Chama uma função JavaScript (definida no seu arquivo JS) para disparar o download do arquivo.
+            await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.pdf", "application/pdf", pdfData);
+        }
+        catch (HttpRequestException ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Erro ao exportar PDF: {ex.Message}");
+        }
     }
 
-    [Inject]
-    public IJSRuntime JS { get; set; }
+    private async Task ExportCsv()
+    {
+        // Se você tiver endpoints CSV implementados, ajuste aqui.
+        // Caso contrário, podemos exibir uma mensagem informando que o CSV não está disponível.
+        string endpoint = selectedReport switch
+        {
+            "stores" => "api/Export/stores-report-csv",
+            "products" => "api/Export/products-report-csv",
+            _ => "api/Export/stores-report-csv"
+        };
+
+        try
+        {
+            var csvData = await Http.GetByteArrayAsync(endpoint);
+            await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.csv", "text/csv", csvData);
+        }
+        catch (HttpRequestException)
+        {
+            await JS.InvokeVoidAsync("alert", "Endpoint CSV não implementado para este relatório.");
+        }
+    }
 }

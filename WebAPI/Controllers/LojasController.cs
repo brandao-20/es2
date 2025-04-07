@@ -15,10 +15,18 @@ namespace WebAPI.Controllers
             _lojaRepository = lojaRepository;
         }
 
+        // GET: api/Lojas?page=1&pageSize=5
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Loja>>> GetAll()
+        public async Task<ActionResult<IEnumerable<Loja>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            var lojas = await _lojaRepository.GetAllWithDetailsAsync();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
+
+            var totalItems = await _lojaRepository.CountAsync();
+            var skip = (page - 1) * pageSize;
+            var lojas = await _lojaRepository.GetPagedWithDetailsAsync(skip, pageSize);
+
+            Response.Headers["X-Total-Count"] = totalItems.ToString();
             return Ok(lojas);
         }
 
@@ -35,7 +43,7 @@ namespace WebAPI.Controllers
         {
             if (loja.Localizacao != null)
             {
-                if (!HasValue(loja.Localizacao.GoogleMapsUrl) &&
+                if (string.IsNullOrWhiteSpace(loja.Localizacao.GoogleMapsUrl) &&
                     loja.Localizacao.Latitude.HasValue &&
                     loja.Localizacao.Longitude.HasValue)
                 {
@@ -55,7 +63,7 @@ namespace WebAPI.Controllers
 
             if (loja.Localizacao != null)
             {
-                if (!HasValue(loja.Localizacao.GoogleMapsUrl) &&
+                if (string.IsNullOrWhiteSpace(loja.Localizacao.GoogleMapsUrl) &&
                     loja.Localizacao.Latitude.HasValue &&
                     loja.Localizacao.Longitude.HasValue)
                 {
@@ -83,11 +91,6 @@ namespace WebAPI.Controllers
 
             await _lojaRepository.DeleteAsync(loja);
             return NoContent();
-        }
-
-        private bool HasValue(string? str)
-        {
-            return !string.IsNullOrWhiteSpace(str);
         }
     }
 }

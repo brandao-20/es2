@@ -22,6 +22,7 @@ namespace WebAPI.Controllers
             _produtoRepository = produtoRepository;
         }
 
+        // Relatório Geral de Lojas (Requisito 13)
         [HttpGet("lojas")]
         public async Task<ActionResult<IEnumerable<LojaReportDto>>> GetLojasReport()
         {
@@ -31,6 +32,7 @@ namespace WebAPI.Controllers
 
             foreach (var loja in lojas)
             {
+                // Para cada loja, agrupar os registos por produto e por categoria
                 var produtosInfo = registos
                     .Where(r => r.LojaId == loja.LojaId)
                     .GroupBy(r => r.ProdutoId)
@@ -68,17 +70,64 @@ namespace WebAPI.Controllers
             return Ok(report);
         }
 
-        [HttpGet("produtos")]
-        public async Task<ActionResult<IEnumerable<ProdutoReportDto>>> GetProdutosReport()
+        // Relatório Específico para uma Loja (Requisito 14)
+        [HttpGet("lojas/{lojaId:int}")]
+        public async Task<ActionResult<LojaReportDto>> GetLojaReport(int lojaId)
         {
-            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
-            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
-            var report = new List<ProdutoReportDto>();
+            var loja = await _lojaRepository.GetByIdWithDetailsAsync(lojaId);
+            if (loja == null)
+                return NotFound($"Loja com ID {lojaId} não encontrada.");
 
-            foreach (var produto in produtos)
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+
+            var produtosInfo = registos
+                    .Where(r => r.LojaId == lojaId)
+                    .GroupBy(r => r.ProdutoId)
+                    .Select(g => new ProdutoPriceDto
+                    {
+                        ProdutoId = g.Key,
+                        ProdutoNome = g.Select(r => r.Produto.Nome).FirstOrDefault(),
+                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
+                        LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
+                    })
+                    .ToList();
+
+            var categoriaCounts = registos
+                    .Where(r => r.LojaId == lojaId)
+                    .GroupBy(r => r.Produto.CategoriaId)
+                    .Select(g => new CategoriaCountDto
+                    {
+                        CategoriaId = g.Key,
+                        CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault(),
+                        Count = g.Count()
+                    })
+                    .ToList();
+
+            var dto = new LojaReportDto
             {
-                var lojasInfo = registos
-                    .Where(r => r.ProdutoId == produto.ProdutoId)
+                LojaId = loja.LojaId,
+                Nome = loja.Nome,
+                Endereco = loja.Endereco,
+                Localizacao = loja.Localizacao,
+                CategoriaCounts = categoriaCounts,
+                Produtos = produtosInfo
+            };
+
+            return Ok(dto);
+        }
+
+        // Relatório Específico para um Produto (Requisito 15)
+        [HttpGet("produtos/{produtoId:int}")]
+        public async Task<ActionResult<ProdutoReportDto>> GetProdutoReport(int produtoId)
+        {
+            var produto = await _produtoRepository.GetByIdWithDetailsAsync(produtoId);
+            if (produto == null)
+                return NotFound($"Produto com ID {produtoId} não encontrado.");
+
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+
+            var lojasInfo = registos
+                    .Where(r => r.ProdutoId == produtoId)
                     .GroupBy(r => r.LojaId)
                     .Select(g => new LojaPriceDto
                     {
@@ -89,19 +138,19 @@ namespace WebAPI.Controllers
                     })
                     .ToList();
 
-                report.Add(new ProdutoReportDto
-                {
-                    ProdutoId = produto.ProdutoId,
-                    Nome = produto.Nome,
-                    Categoria = produto.Categoria?.Nome,
-                    Lojas = lojasInfo
-                });
-            }
+            var dto = new ProdutoReportDto
+            {
+                ProdutoId = produto.ProdutoId,
+                Nome = produto.Nome,
+                Categoria = produto.Categoria?.Nome,
+                Lojas = lojasInfo
+            };
 
-            return Ok(report);
+            return Ok(dto);
         }
     }
 
+    // DTOs para relatórios
     public class LojaReportDto
     {
         public int LojaId { get; set; }

@@ -7,7 +7,12 @@ namespace WebAPI.Repositories
 {
     public class UtilizadorRepository : Repository<Utilizador>, IUtilizadorRepository
     {
-        public UtilizadorRepository(AppDbContext context) : base(context) { }
+        private readonly AppDbContext _context;
+
+        public UtilizadorRepository(AppDbContext context) : base(context)
+        {
+            _context = context;
+        }
 
         public async Task<IEnumerable<Utilizador>> GetAllWithDetailsAsync()
         {
@@ -37,6 +42,21 @@ namespace WebAPI.Repositories
             return await _context.Utilizadores
                 .Include(u => u.TipoUtilizador)
                 .Where(predicate)
+                .ToListAsync();
+        }
+
+        public async Task<int> CountAsync()
+        {
+            return await _context.Utilizadores.CountAsync();
+        }
+
+        public async Task<List<Utilizador>> GetPagedWithDetailsAsync(int skip, int take)
+        {
+            return await _context.Utilizadores
+                .Include(u => u.TipoUtilizador)
+                .OrderBy(u => u.UtilizadorId)
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync();
         }
     }

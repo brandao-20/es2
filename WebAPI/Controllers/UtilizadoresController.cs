@@ -57,13 +57,22 @@ namespace WebAPI.Controllers
         {
             var user = await _utilizadorRepository.GetByIdWithDetailsAsync(id);
             if (user == null) return NotFound();
-            return user;
+            return Ok(user);
         }
 
+        // GET: api/Utilizadores?page=1&pageSize=5
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Utilizador>>> GetAll()
+        public async Task<ActionResult<IEnumerable<Utilizador>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            return Ok(await _utilizadorRepository.GetAllWithDetailsAsync());
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
+
+            var totalItems = await _utilizadorRepository.CountAsync();
+            var skip = (page - 1) * pageSize;
+            var users = await _utilizadorRepository.GetPagedWithDetailsAsync(skip, pageSize);
+
+            Response.Headers["X-Total-Count"] = totalItems.ToString();
+            return Ok(users);
         }
 
         [HttpPut("{id:int}")]

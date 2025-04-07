@@ -1,6 +1,8 @@
 @page "/relatoriolojas"
 @using System.Net.Http.Json
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Relatório de Lojas</PageTitle>
 <h3>Relatório de Lojas</h3>
@@ -26,7 +28,7 @@ else
                         <li>@cat.CategoriaNome: @cat.Count produtos</li>
                     }
                 </ul>
-                <p><strong>Produtos e Preços:</strong></p>
+                <p><strong>Produtos e Últimos Preços:</strong></p>
                 <table class="table">
                     <thead>
                         <tr>
@@ -40,7 +42,7 @@ else
                         {
                             <tr>
                                 <td>@prod.ProdutoNome</td>
-                                <td>@prod.LatestPrice</td>
+                                <td>@prod.LatestPrice.ToString("C")</td>
                                 <td>@prod.LatestDate.ToString("g")</td>
                             </tr>
                         }
@@ -53,12 +55,17 @@ else
 
 @code {
     private List<LojaReportDto>? lojasReport;
-    
+
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         lojasReport = await Http.GetFromJsonAsync<List<LojaReportDto>>("api/Relatorios/lojas");
     }
-    
+
     public class LojaReportDto
     {
         public int LojaId { get; set; }
@@ -68,21 +75,21 @@ else
         public List<CategoriaCountDto> CategoriaCounts { get; set; } = new();
         public List<ProdutoPriceDto> Produtos { get; set; } = new();
     }
-    
+
     public class LocalizacaoDto
     {
         public int LocalizacaoId { get; set; }
         public string? Cidade { get; set; }
         public string? Pais { get; set; }
     }
-    
+
     public class CategoriaCountDto
     {
         public int CategoriaId { get; set; }
         public string? CategoriaNome { get; set; }
         public int Count { get; set; }
     }
-    
+
     public class ProdutoPriceDto
     {
         public int ProdutoId { get; set; }

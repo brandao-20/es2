@@ -98,7 +98,7 @@ else
 }
 
 @code {
-    // Modelo para o novo registro de preço
+    // Modelo para o novo registo de preço
     private RegistosPreco newRecord = new RegistosPreco();
 
     // Listas de produtos, lojas e tipos de ação
@@ -106,7 +106,7 @@ else
     private List<Loja>? lojas;
     private List<TipoAcao>? tipoAcoes;
 
-    // Último registro de preço para o produto/loja selecionados
+    // Último registo de preço para o produto/loja selecionados
     private RegistosPreco? latestRecord;
 
     // Mensagem de feedback
@@ -114,6 +114,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         if (!AuthService.IsLoggedIn)
         {
             Navigation.NavigateTo("/login");
@@ -165,7 +170,7 @@ else
 
         try
         {
-            // Chama o endpoint de confirmação passando o ID do último registro
+            // Chama o endpoint de confirmação passando o ID do último registo
             var response = await Http.PostAsJsonAsync($"api/RegistosPrecos/confirm/{latestRecord.RegistoPrecoId}", new { });
             if (response.IsSuccessStatusCode)
             {

@@ -9,5 +9,9 @@ namespace WebAPI.Repositories
         Task<Utilizador> GetByIdWithDetailsAsync(int id);
         Task<IEnumerable<Utilizador>> FindAsync(Expression<Func<Utilizador, bool>> predicate);
         Task<IEnumerable<Utilizador>> FindWithDetailsAsync(Expression<Func<Utilizador, bool>> predicate);
+
+        // Métodos para paginação:
+        Task<int> CountAsync();
+        Task<List<Utilizador>> GetPagedWithDetailsAsync(int skip, int take);
     }
 }

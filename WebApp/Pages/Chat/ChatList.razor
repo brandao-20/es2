@@ -99,6 +99,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         var token = await LocalStorage.GetItemAsync<string>("authToken");
         if (string.IsNullOrEmpty(token))
         {

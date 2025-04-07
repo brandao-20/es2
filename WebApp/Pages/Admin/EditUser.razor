@@ -63,6 +63,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
             // Carrega o user

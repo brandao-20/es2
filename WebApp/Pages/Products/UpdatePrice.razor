@@ -77,17 +77,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
         if (!AuthService.IsLoggedIn)
         {
             Navigation.NavigateTo("/login");
             return;
         }
 
-        // Carregar o registro de preço existente
+        // Carregar o registo de preço existente
         priceUpdate = await Http.GetFromJsonAsync<RegistosPreco>($"api/RegistosPrecos/{RegistoPrecoId}");
         if (priceUpdate == null)
         {
-            mensagem = "Registro de preço não encontrado.";
+            mensagem = "Registo de preço não encontrado.";
             return;
         }
 

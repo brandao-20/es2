@@ -6,5 +6,9 @@ namespace WebAPI.Repositories
     {
         Task<IEnumerable<Loja>> GetAllWithDetailsAsync();
         Task<Loja> GetByIdWithDetailsAsync(int id);
+
+        // Métodos para paginação:
+        Task<int> CountAsync();
+        Task<List<Loja>> GetPagedWithDetailsAsync(int skip, int take);
     }
 }
