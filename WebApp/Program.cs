@@ -2,12 +2,19 @@ using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Configuration; // Necessário para IConfiguration
 using WebApp;
 using WebApp.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
+
+// Carrega o appsettings.json do wwwroot
+builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
+// Regista o IConfiguration como singleton
+builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<AuthService>();

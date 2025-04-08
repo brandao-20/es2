@@ -5,12 +5,12 @@
 @inject WebApp.Services.AuthService AuthService
 @inject IJSRuntime JSRuntime
 
-<PageTitle>Registrar Preço</PageTitle>
-<h3>Registrar Preço</h3>
+<PageTitle>Registar Preço</PageTitle>
+<h3>Registar Preço</h3>
 
 @if (!AuthService.IsLoggedIn)
 {
-    <p>Você precisa estar logado para registrar um preço.</p>
+    <p>Você precisa estar logado para registar um preço.</p>
     <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
 }
 else
@@ -76,19 +76,18 @@ else
             <InputDate class="form-control" @bind-Value="newRecord.DataRegisto" max="@DateTime.Now.ToString("yyyy-MM-dd")" />
         </div>
 
-        <!-- Se houver um último preço registrado, exibe a informação e botão de confirmação -->
+        <!-- Se houver um último preço registado, exibe a informação e botão de confirmação -->
         @if (latestRecord != null)
         {
             <div class="alert alert-info">
-                Último preço registrado: <strong>@latestRecord.Preco.ToString("C")</strong> em <strong>@latestRecord.DataRegisto.ToString("dd/MM/yyyy HH:mm")</strong>.
+                Último preço registado: <strong>@latestRecord.Preco.ToString("C")</strong> em <strong>@latestRecord.DataRegisto.ToString("dd/MM/yyyy HH:mm")</strong>.
                 <br />
                 Deseja confirmar este preço?
                 <button type="button" class="btn btn-success btn-sm mt-2" @onclick="ConfirmExistingPrice">Confirmar Preço Existente</button>
             </div>
         }
 
-        <button type="submit" class="btn btn-primary">Registrar Novo Preço</button>
-        <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
+        <button type="submit" class="btn btn-primary">Registar Novo Preço</button>
     </EditForm>
 }
 
@@ -190,19 +189,19 @@ else
         StateHasChanged();
     }
 
-    // Método para registrar um novo preço (submit do formulário)
+    // Método para registar um novo preço (submit do formulário)
     private async Task HandleSubmit()
     {
         var response = await Http.PostAsJsonAsync("api/RegistosPrecos", newRecord);
         if (response.IsSuccessStatusCode)
         {
-            message = "Preço registrado com sucesso!";
+            message = "Preço registado com sucesso!";
             Navigation.NavigateTo("/produtos");
         }
         else
         {
             var debugMsg = await response.Content.ReadAsStringAsync();
-            message = $"Erro ao registrar preço: {debugMsg}";
+            message = $"Erro ao registar preço: {debugMsg}";
         }
     }
 

@@ -29,6 +29,7 @@ namespace WebAPI.Controllers
         }
 
         // Exporta Relatório Geral de Lojas em CSV
+        // Endpoint: GET /api/Export/lojas/csv
         [HttpGet("lojas/csv")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> ExportLojasCsv()
@@ -49,6 +50,7 @@ namespace WebAPI.Controllers
         }
 
         // Exporta Relatório Geral de Lojas em PDF
+        // Endpoint: GET /api/Export/lojas/pdf
         [HttpGet("lojas/pdf")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> ExportLojasPdf()
@@ -81,6 +83,7 @@ namespace WebAPI.Controllers
         }
 
         // Exporta Relatório Geral de Produtos em PDF
+        // Endpoint: GET /api/Export/produtos/pdf
         [HttpGet("produtos/pdf")]
         [Authorize(Roles = "Admin,UserManager")]
         public async Task<IActionResult> ExportProdutosPdf()

@@ -23,6 +23,7 @@ namespace WebAPI.Controllers
         }
 
         // Relatório Geral de Lojas (Requisito 13)
+        // Endpoint: GET /api/Relatorios/lojas
         [HttpGet("lojas")]
         public async Task<ActionResult<IEnumerable<LojaReportDto>>> GetLojasReport()
         {
@@ -32,16 +33,16 @@ namespace WebAPI.Controllers
 
             foreach (var loja in lojas)
             {
-                // Para cada loja, agrupar os registos por produto e por categoria
+                // Para cada loja, agrupar os registos por produto (para obter o último preço)
                 var produtosInfo = registos
                     .Where(r => r.LojaId == loja.LojaId)
                     .GroupBy(r => r.ProdutoId)
                     .Select(g => new ProdutoPriceDto
                     {
                         ProdutoId = g.Key,
-                        ProdutoNome = g.Select(r => r.Produto.Nome).FirstOrDefault(),
-                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
-                        LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
+                        ProdutoNome = g.Select(r => r.Produto.Nome).FirstOrDefault() ?? "N/A",
+                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
+                        LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
                     })
                     .ToList();
 
@@ -51,7 +52,7 @@ namespace WebAPI.Controllers
                     .Select(g => new CategoriaCountDto
                     {
                         CategoriaId = g.Key,
-                        CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault(),
+                        CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault() ?? "N/A",
                         Count = g.Count()
                     })
                     .ToList();
@@ -66,11 +67,11 @@ namespace WebAPI.Controllers
                     Produtos = produtosInfo
                 });
             }
-
             return Ok(report);
         }
 
         // Relatório Específico para uma Loja (Requisito 14)
+        // Endpoint: GET /api/Relatorios/lojas/{lojaId}
         [HttpGet("lojas/{lojaId:int}")]
         public async Task<ActionResult<LojaReportDto>> GetLojaReport(int lojaId)
         {
@@ -81,27 +82,27 @@ namespace WebAPI.Controllers
             var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
 
             var produtosInfo = registos
-                    .Where(r => r.LojaId == lojaId)
-                    .GroupBy(r => r.ProdutoId)
-                    .Select(g => new ProdutoPriceDto
-                    {
-                        ProdutoId = g.Key,
-                        ProdutoNome = g.Select(r => r.Produto.Nome).FirstOrDefault(),
-                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
-                        LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
-                    })
-                    .ToList();
+                .Where(r => r.LojaId == lojaId)
+                .GroupBy(r => r.ProdutoId)
+                .Select(g => new ProdutoPriceDto
+                {
+                    ProdutoId = g.Key,
+                    ProdutoNome = g.Select(r => r.Produto.Nome).FirstOrDefault() ?? "N/A",
+                    LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
+                    LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                })
+                .ToList();
 
             var categoriaCounts = registos
-                    .Where(r => r.LojaId == lojaId)
-                    .GroupBy(r => r.Produto.CategoriaId)
-                    .Select(g => new CategoriaCountDto
-                    {
-                        CategoriaId = g.Key,
-                        CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault(),
-                        Count = g.Count()
-                    })
-                    .ToList();
+                .Where(r => r.LojaId == lojaId)
+                .GroupBy(r => r.Produto.CategoriaId)
+                .Select(g => new CategoriaCountDto
+                {
+                    CategoriaId = g.Key,
+                    CategoriaNome = g.Select(r => r.Produto.Categoria.Nome).FirstOrDefault() ?? "N/A",
+                    Count = g.Count()
+                })
+                .ToList();
 
             var dto = new LojaReportDto
             {
@@ -117,6 +118,7 @@ namespace WebAPI.Controllers
         }
 
         // Relatório Específico para um Produto (Requisito 15)
+        // Endpoint: GET /api/Relatorios/produtos/{produtoId}
         [HttpGet("produtos/{produtoId:int}")]
         public async Task<ActionResult<ProdutoReportDto>> GetProdutoReport(int produtoId)
         {
@@ -127,16 +129,16 @@ namespace WebAPI.Controllers
             var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
 
             var lojasInfo = registos
-                    .Where(r => r.ProdutoId == produtoId)
-                    .GroupBy(r => r.LojaId)
-                    .Select(g => new LojaPriceDto
-                    {
-                        LojaId = g.Key,
-                        LojaNome = g.Select(r => r.Loja.Nome).FirstOrDefault(),
-                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).Select(r => r.Preco).FirstOrDefault(),
-                        LatestDate = g.OrderByDescending(r => r.DataRegisto).Select(r => r.DataRegisto).FirstOrDefault()
-                    })
-                    .ToList();
+                .Where(r => r.ProdutoId == produtoId)
+                .GroupBy(r => r.LojaId)
+                .Select(g => new LojaPriceDto
+                {
+                    LojaId = g.Key,
+                    LojaNome = g.Select(r => r.Loja.Nome).FirstOrDefault() ?? "N/A",
+                    LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
+                    LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                })
+                .ToList();
 
             var dto = new ProdutoReportDto
             {
@@ -150,7 +152,8 @@ namespace WebAPI.Controllers
         }
     }
 
-    // DTOs para relatórios
+    // DTOs para Relatórios
+
     public class LojaReportDto
     {
         public int LojaId { get; set; }

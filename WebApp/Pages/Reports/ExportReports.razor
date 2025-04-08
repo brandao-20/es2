@@ -12,7 +12,6 @@
     <select id="reportSelect" class="form-select" @bind="selectedReport">
         <option value="stores">Relatório Geral de Lojas</option>
         <option value="products">Relatório Geral de Produtos</option>
-        <!-- Futuramente, você pode adicionar outras opções, como relatório específico por loja ou produto -->
     </select>
 </div>
 
@@ -22,27 +21,22 @@
 </div>
 
 @code {
-    // Valor inicial: relatório de lojas
     private string selectedReport = "stores";
 
     private async Task ExportPdf()
     {
-        // Define o endpoint conforme o relatório selecionado.
-        // Observe que os endpoints devem estar implementados no backend.
         string endpoint = selectedReport switch
         {
-            "stores" => "api/Export/stores-report",
-            "products" => "api/Export/products-report",
-            _ => "api/Export/stores-report"
+            "stores" => "api/Export/lojas/pdf",
+            "products" => "api/Export/produtos/pdf",
+            _ => "api/Export/lojas/pdf"
         };
-
         try
         {
             var pdfData = await Http.GetByteArrayAsync(endpoint);
-            // Chama uma função JavaScript (definida no seu arquivo JS) para disparar o download do arquivo.
             await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.pdf", "application/pdf", pdfData);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
             await JS.InvokeVoidAsync("alert", $"Erro ao exportar PDF: {ex.Message}");
         }
@@ -50,21 +44,20 @@
 
     private async Task ExportCsv()
     {
-        // Se você tiver endpoints CSV implementados, ajuste aqui.
-        // Caso contrário, podemos exibir uma mensagem informando que o CSV não está disponível.
+        // Se houver endpoint CSV (exemplo para lojas)
         string endpoint = selectedReport switch
         {
-            "stores" => "api/Export/stores-report-csv",
-            "products" => "api/Export/products-report-csv",
-            _ => "api/Export/stores-report-csv"
+            "stores" => "api/Export/lojas/csv",
+            // Caso queira implementar para produtos, ajuste aqui:
+            "products" => "api/Export/products/csv",
+            _ => "api/Export/lojas/csv"
         };
-
         try
         {
             var csvData = await Http.GetByteArrayAsync(endpoint);
             await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.csv", "text/csv", csvData);
         }
-        catch (HttpRequestException)
+        catch (Exception)
         {
             await JS.InvokeVoidAsync("alert", "Endpoint CSV não implementado para este relatório.");
         }

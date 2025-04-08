@@ -1,5 +1,6 @@
 @page "/stores/new"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -46,9 +47,9 @@ else
             <div class="alert alert-info">
                 Clique no mapa para mover o marcador e defina lat/lng.
                 <br />
-                Latitude: @newStore.Localizacao?.Latitude
+                Latitude: @newStore.Localizacao.Latitude
                 <br />
-                Longitude: @newStore.Localizacao?.Longitude
+                Longitude: @newStore.Localizacao.Longitude
             </div>
         }
         else
@@ -75,26 +76,23 @@ else
 }
 
 @code {
-    // Model do front-end
     private LojaModel newStore = new LojaModel();
     private string message = "";
-
-    // Por padrão, vamos usar o mapa
     private bool usarMapa = true;
-
-    // Coordenadas iniciais do mapa
     private decimal tempLatitude = 38.7223m;  // Lisboa
     private decimal tempLongitude = -9.1393m;
 
     protected override void OnInitialized()
     {
-        newStore.Localizacao = new LocalizacaoModel();
-        // Se quiser setar defaults: newStore.Localizacao.Latitude = 38.7223m;
+        newStore.Localizacao = new LocalizacaoModel
+        {
+            Latitude = 0m,
+            Longitude = 0m
+        };
     }
 
     private async Task HandleSubmit()
     {
-        // Envia JSON para /api/Lojas
         var response = await Http.PostAsJsonAsync("api/Lojas", newStore);
         if (response.IsSuccessStatusCode)
         {
@@ -108,12 +106,8 @@ else
         }
     }
 
-    // Recebe coords do clique no mapa
     private async Task HandleMapClick((decimal lat, decimal lng) coords)
     {
-        if (newStore.Localizacao == null)
-            newStore.Localizacao = new LocalizacaoModel();
-
         newStore.Localizacao.Latitude = coords.lat;
         newStore.Localizacao.Longitude = coords.lng;
         await InvokeAsync(StateHasChanged);
@@ -121,22 +115,20 @@ else
 
     private void GoBack() => Navigation.NavigateTo("/stores");
 
-    // Modelos
     public class LojaModel
     {
         public int LojaId { get; set; }
         public string Nome { get; set; } = "";
         public string Endereco { get; set; } = "";
-
         public int? LocalizacaoId { get; set; }
-        public LocalizacaoModel? Localizacao { get; set; }
+        public LocalizacaoModel Localizacao { get; set; } = null!; // Garantido que não será null
     }
 
     public class LocalizacaoModel
     {
         public int LocalizacaoId { get; set; }
-        public decimal? Latitude { get; set; }
-        public decimal? Longitude { get; set; }
+        public decimal Latitude { get; set; } // Não nullable
+        public decimal Longitude { get; set; } // Não nullable
         public string? GoogleMapsUrl { get; set; }
     }
 }
