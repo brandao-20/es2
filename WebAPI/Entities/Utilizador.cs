@@ -11,6 +11,7 @@ public partial class Utilizador
     public string Username { get; set; } = null!;
 
     public string Password { get; set; } = null!;
+
     public string Email { get; set; } = null!;
 
     public string? GoogleToken { get; set; }
@@ -28,6 +29,12 @@ public partial class Utilizador
 
     [JsonIgnore]
     public virtual ICollection<RegistosPreco> RegistosPrecos { get; set; } = new List<RegistosPreco>();
+
+    [JsonIgnore]
+    public virtual ICollection<Mensagem> MensagensEnviadas { get; set; } = new List<Mensagem>();
+
+    [JsonIgnore]
+    public virtual ICollection<Mensagem> MensagensRecebidas { get; set; } = new List<Mensagem>();
 
     public virtual TipoUtilizador? TipoUtilizador { get; set; }
 }

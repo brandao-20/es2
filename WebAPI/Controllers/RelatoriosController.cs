@@ -1,25 +1,36 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WebAPI.Context;
 using WebAPI.Entities;
+using WebAPI.ExportStrategies;
 using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class RelatoriosController : ControllerBase
     {
         private readonly ILojaRepository _lojaRepository;
         private readonly IRegistosPrecoRepository _registosPrecoRepository;
         private readonly IProdutoRepository _produtoRepository;
+        private readonly ReportExportService _exportService;
+        private readonly AppDbContext _context;
 
         public RelatoriosController(
             ILojaRepository lojaRepository,
             IRegistosPrecoRepository registosPrecoRepository,
-            IProdutoRepository produtoRepository)
+            IProdutoRepository produtoRepository,
+            ReportExportService exportService,
+            AppDbContext context)
         {
             _lojaRepository = lojaRepository;
             _registosPrecoRepository = registosPrecoRepository;
             _produtoRepository = produtoRepository;
+            _exportService = exportService;
+            _context = context;
         }
 
         // Relatório Geral de Lojas (Requisito 13)
@@ -33,7 +44,6 @@ namespace WebAPI.Controllers
 
             foreach (var loja in lojas)
             {
-                // Para cada loja, agrupar os registos por produto (para obter o último preço)
                 var produtosInfo = registos
                     .Where(r => r.LojaId == loja.LojaId)
                     .GroupBy(r => r.ProdutoId)
@@ -150,10 +160,43 @@ namespace WebAPI.Controllers
 
             return Ok(dto);
         }
+
+        // Exportação de Relatórios em CSV ou PDF
+        // Endpoint: GET /api/Relatorios/export
+        [HttpGet("export")]
+        public IActionResult ExportReport(string format)
+        {
+            var data = _context.RegistosPrecos
+                .Include(rp => rp.Produto)
+                    .ThenInclude(p => p.Categoria!)
+                .Include(rp => rp.Loja)
+                .Select(rp => new Relatorio
+                {
+                    NomeProduto = rp.Produto.Nome,
+                    ProdutoId = rp.Produto.ProdutoId,
+                    NomeLoja = rp.Loja.Nome,
+                    LojaId = rp.Loja.LojaId,
+                    Preco = rp.Preco,
+                    Data = rp.DataRegisto,
+                    CategoriaId = rp.Produto.Categoria.CategoriaId
+                })
+                .ToList();
+
+            try
+            {
+                var fileContent = _exportService.ExportReport(data, format);
+                var contentType = format.ToLower() == "csv" ? "text/csv" : "application/pdf";
+                var fileName = $"relatorio_precos_{DateTime.Now:yyyyMMdd}.{format}";
+                return File(fileContent, contentType, fileName);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
     }
 
     // DTOs para Relatórios
-
     public class LojaReportDto
     {
         public int LojaId { get; set; }
