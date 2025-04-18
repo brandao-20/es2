@@ -3,18 +3,19 @@ using Microsoft.AspNetCore.Http.Connections.Features;
 using Microsoft.AspNetCore.SignalR;
 using WebAPI.Entities;
 using WebAPI.Repositories;
+using WebAPI.Services;
 
 namespace WebAPI.Hubs
 {
     [Authorize]
     public class ChatHub : Hub
     {
-        private readonly IMensagemRepository _mensagemRepository;
+        private readonly ChatService _chatService;
         private readonly IUtilizadorRepository _utilizadorRepository;
 
-        public ChatHub(IMensagemRepository mensagemRepository, IUtilizadorRepository utilizadorRepository)
+        public ChatHub(ChatService chatService, IUtilizadorRepository utilizadorRepository)
         {
-            _mensagemRepository = mensagemRepository;
+            _chatService = chatService;
             _utilizadorRepository = utilizadorRepository;
         }
 
@@ -58,10 +59,8 @@ namespace WebAPI.Hubs
                 DataEnvio = DateTime.UtcNow
             };
 
-            await _mensagemRepository.AddAsync(mensagem);
+            await _chatService.SendMessageAsync(mensagem);
             Console.WriteLine($"[DEBUG] Mensagem enviada de {remetenteId} para {destinatarioId}: {message}");
-            await Clients.Group($"user-{destinatarioId}").SendAsync("ReceiveMessage", remetente.Username, remetenteId, destinatarioId, message, mensagem.DataEnvio);
-            await Clients.Caller.SendAsync("ReceiveMessage", remetente.Username, remetenteId, destinatarioId, message, mensagem.DataEnvio);
         }
     }
 }

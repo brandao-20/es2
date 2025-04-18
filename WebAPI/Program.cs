@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using WebAPI.Context;
 using WebAPI.Factories;
 using WebAPI.Hubs;
+using WebAPI.Observers;
 using WebAPI.Repositories;
 using WebAPI.Services;
 
@@ -20,6 +21,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IRepositoryFactory, RepositoryFactory>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddSignalR();
+builder.Services.AddScoped<ChatService>();
+builder.Services.AddScoped<IMessageObserverRegistry, MessageObserverRegistry>();
 
 // Registo dos repositórios
 builder.Services.AddScoped<IUtilizadorRepository>(sp =>
