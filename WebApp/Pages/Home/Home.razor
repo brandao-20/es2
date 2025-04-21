@@ -6,21 +6,27 @@
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject WebApp.Services.AuthService AuthService
 @inject NavigationManager Navigation
+@using WebApp.Pages.ChatBot
 
-@if (!string.IsNullOrEmpty(message))
-{
-    <p style="color: green">@message</p>
-}
+<div style="position: relative; min-height: calc(100vh - 3.5rem);">
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <p style="color: green">@message</p>
+    }
 
-@if (AuthService.IsLoggedIn)
-{
-    RedirectToHome();
-}
-else
-{
-    <h1>Bem-vindo à Plataforma de Comparação de Preços!</h1>
-    <p>Aqui você pode pesquisar produtos sem login, ou efetuar login para mais funcionalidades.</p>
-}
+    @if (AuthService.IsLoggedIn)
+    {
+        RedirectToHome();
+    }
+    else
+    {
+        <h1>Bem-vindo à Plataforma de Comparação de Preços!</h1>
+        <p>Aqui você pode pesquisar produtos sem login, ou efetuar login para mais funcionalidades.</p>
+        <p>Precisa de ajuda? Clique no <b>Assistente de Preços</b> no canto inferior direito! 🤖</p>
+    }
+
+    <Chatbot />
+</div>
 
 @code {
     private string? message;
@@ -33,23 +39,17 @@ else
 
         if (!string.IsNullOrEmpty(googleToken))
         {
-            // Salva no localStorage
             await LocalStorage.SetItemAsync("authToken", googleToken);
-
-            // Ajusta o AuthService
             AuthService.Token = googleToken;
 
-            // Decodifica o token
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(googleToken);
 
-            // Extrai Name e Role
             var userName = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? "GoogleUser";
             var role = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "USER";
             AuthService.UserName = userName;
             AuthService.Role = role;
 
-            // Extrai o "utilizadorId"
             var userIdClaim = jwt.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value;
             if (int.TryParse(userIdClaim, out int parsedId))
             {

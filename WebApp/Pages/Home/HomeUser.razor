@@ -1,5 +1,11 @@
 @page "/homeuser"
 @inject WebApp.Services.AuthService AuthService
+@using WebApp.Pages.ChatBot
 
-<h1>Bem-vindo, @AuthService.UserName!</h1>
-<p>Aqui você pode pesquisar produtos e consultar preços.</p>
+<div style="position: relative; min-height: calc(100vh - 3.5rem);">
+    <h1>Bem-vindo, @AuthService.UserName!</h1>
+    <p>Aqui você pode pesquisar produtos e consultar preços.</p>
+    <p>Precisa de ajuda? Clique no <b>Assistente de Preços</b> no canto inferior direito! 🤖</p>
+
+    <Chatbot />
+</div>

@@ -1,0 +1,182 @@
+@using WebApp.Services
+@using WebApp.Models
+@inject AuthService AuthService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+@if (ShouldShowChatbot())
+{
+    <div class="chat-container">
+        @if (_isChatOpen)
+        {
+            <div class="chatbot-chat">
+                <div class="chat-header">
+                    <span>Assistente de Preços 🤖</span>
+                    <button class="close-button" @onclick="ToggleChat">×</button>
+                </div>
+                <div id="chat-body" class="chat-body">
+                    <div class="message ai">
+                        <span>Olá! 👋 Como posso ajudar a usar o Comparador de Preços?</span>
+                    </div>
+                    <div class="message ai">
+                        <span>Use <b>/ajuda</b> para ver os comandos disponíveis.</span>
+                    </div>
+                    @foreach (var msg in _messages)
+                    {
+                        <div class="message @(msg.sender == "person" ? "person" : "ai") @(msg.sender != "person" ? (msg.type == TIPO.ERRO ? "bg-danger" : msg.type == TIPO.AVISO ? "bg-warning" : "") : "")">
+                            <span>@((MarkupString)msg.message)</span>
+                        </div>
+                    }
+                </div>
+                <div class="chat-footer">
+                    <input type="text" 
+                           class="form-control" 
+                           @bind="_message" 
+                           @bind:event="oninput"
+                           @onkeyup="@(e => { if (e.Key == "Enter") { SendMessage(); } })"
+                           placeholder="Digite um comando..." />
+                    <button class="send-button" @onclick="SendMessage">📨</button>
+                </div>
+            </div>
+        }
+        <button class="chatbot-button" @onclick="ToggleChat">
+            <span class="chatbot-icon">@(_isChatOpen ? "×" : "💬")</span>
+            @if (_isChatOpen)
+            {
+                <span class="close-icon" @onclick:stopPropagation="true" @onclick="ToggleChat">×</span>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    private bool _isChatOpen = false;
+    private string _message = string.Empty;
+    private List<MensagemChatBot> _messages = new List<MensagemChatBot>();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isChatOpen = false;
+            StateHasChanged();
+        }
+
+        if (_isChatOpen)
+        {
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task ToggleChat()
+    {
+        _isChatOpen = !_isChatOpen;
+        if (_isChatOpen)
+        {
+            await ScrollToBottom();
+        }
+        StateHasChanged();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrEmpty(_message))
+        {
+            return;
+        }
+
+        var message = new MensagemChatBot("person", _message);
+        _messages.Add(message);
+
+        await HandleCommand(message);
+
+        _message = string.Empty;
+        await ScrollToBottom();
+    }
+
+    private async Task HandleCommand(MensagemChatBot message)
+    {
+        var command = message.message.Split(' ')[0].ToLower();
+        AuthService.ValidateToken();
+        var isAuthenticated = AuthService.IsLoggedIn;
+
+        switch (command)
+        {
+            case "/ajuda":
+                _messages.Add(new MensagemChatBot("ai", "Comandos disponíveis:<br/>" +
+                    "/ajuda - Lista todos os comandos<br/>" +
+                    "/login - Informações sobre login<br/>" +
+                    "/pesquisar - Como pesquisar produtos<br/>" +
+                    "/registar_preco - Como registar preços<br/>" +
+                    "/lojas - Como gerenciar lojas<br/>" +
+                    "/contactar - Como contactar administradores<br/>" +
+                    "/relatorios - Informações sobre relatórios", TIPO.AVISO));
+                break;
+            case "/login":
+                _messages.Add(new MensagemChatBot("ai", isAuthenticated
+                    ? "Você já está autenticado! Pode registar preços, gerenciar lojas e mais."
+                    : "Faça login para aceder a todas as funcionalidades, como registar preços, gerenciar lojas e exportar relatórios. Clique em 'Login' no menu superior.", TIPO.AVISO));
+                break;
+            case "/pesquisar":
+                _messages.Add(new MensagemChatBot("ai", "Use a barra de pesquisa na página inicial para encontrar produtos. Pode filtrar por preço, categoria ou localização.", TIPO.SUCESSO));
+                break;
+            case "/registar_preco":
+                _messages.Add(new MensagemChatBot("ai", isAuthenticated
+                    ? "Para registar um preço, vá à página de produtos, selecione um produto e clique em 'Registar Preço'."
+                    : "Precisa fazer login para registar preços. Clique em 'Login' no menu superior.", TIPO.AVISO));
+                break;
+            case "/lojas":
+                _messages.Add(new MensagemChatBot("ai", isAuthenticated
+                    ? "Na página 'Lojas', pode visualizar, adicionar ou editar lojas (se for manager/admin)."
+                    : "Faça login para gerenciar lojas. Sem login, pode apenas visualizar a lista de lojas.", TIPO.AVISO));
+                break;
+            case "/contactar":
+                _messages.Add(new MensagemChatBot("ai", isAuthenticated
+                    ? "Use a funcionalidade de chat na página 'Chat' para contactar administradores."
+                    : "Faça login para usar o chat e contactar administradores.", TIPO.AVISO));
+                break;
+            case "/relatorios":
+                _messages.Add(new MensagemChatBot("ai", isAuthenticated
+                    ? "Na página 'Relatórios', pode exportar dados em CSV ou PDF."
+                    : "Faça login para aceder à funcionalidade de relatórios.", TIPO.AVISO));
+                break;
+            default:
+                _messages.Add(new MensagemChatBot("ai", "Comando não reconhecido. Use <b>/ajuda</b> para ver a lista de comandos.", TIPO.ERRO));
+                break;
+        }
+
+        await ScrollToBottom();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await JS.InvokeVoidAsync("scrollToBottom", "chat-body");
+    }
+
+    private bool ShouldShowChatbot()
+    {
+        var currentPath = Navigation.Uri;
+        var baseUri = Navigation.BaseUri;
+        var relativePath = currentPath.Replace(baseUri, "").TrimEnd('/').ToLower();
+
+        if (relativePath == "")
+        {
+            return !AuthService.IsLoggedIn;
+        }
+        else if (relativePath == "homeuser")
+        {
+            return AuthService.IsLoggedIn && string.Equals(AuthService.Role, "USER", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+}
+
+<script>
+    function scrollToBottom(elementId) {
+        var element = document.getElementById(elementId);
+        if (element) {
+            element.scrollTop = element.scrollHeight;
+        }
+    }
+</script>
