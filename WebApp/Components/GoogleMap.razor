@@ -8,7 +8,7 @@
 }
 else
 {
-    <div id="@MapElementId" style="width:100%; height:400px;"></div>
+    <div id="@MapElementId" style="width:100%; height:100%;"></div>
 }
 
 @code {
@@ -19,7 +19,10 @@ else
     public decimal Longitude { get; set; } = 0m;
 
     [Parameter]
-    public EventCallback<(decimal lat, decimal lng)> OnMapClick { get; set; }
+    public EventCallback<(decimal lat, decimal lng, string address)> OnMapClick { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnMapInitialized { get; set; }
 
     private DotNetObjectReference<GoogleMap>? _objectRef;
     private string MapElementId = $"map_{Guid.NewGuid():N}";
@@ -34,7 +37,6 @@ else
             {
                 Console.WriteLine($"[DEBUG] Iniciando carregamento do Google Maps no elemento {MapElementId}");
 
-                // Aguarda até que mapsInterop esteja disponível
                 await WaitForMapsInterop();
                 Console.WriteLine("[DEBUG] mapsInterop disponível.");
 
@@ -56,6 +58,8 @@ else
                     _objectRef
                 );
                 Console.WriteLine("[DEBUG] Mapa inicializado com sucesso.");
+
+                await OnMapInitialized.InvokeAsync(MapElementId);
             }
             catch (JSException ex)
             {
@@ -70,12 +74,11 @@ else
     private async Task WaitForMapsInterop()
     {
         int attempts = 0;
-        const int maxAttempts = 200; // 20 segundos (200 * 100ms)
+        const int maxAttempts = 200;
         while (true)
         {
             try
             {
-                // Verifica se mapsInterop e loadGoogleMaps estão definidos
                 bool isUndefined = await JS.InvokeAsync<bool>("eval", "typeof window.mapsInterop === 'undefined' || typeof window.mapsInterop.loadGoogleMaps === 'undefined'");
                 if (!isUndefined)
                 {
@@ -83,7 +86,7 @@ else
                     break;
                 }
 
-                Console.WriteLine($"[DEBUG] Aguardando mapsInterop... Tentativa {attempts + 1}/{maxAttempts}. Estado de mapsInterop: " + await JS.InvokeAsync<string>("eval", "typeof window.mapsInterop") + ", Estado de loadGoogleMaps: " + await JS.InvokeAsync<string>("eval", "typeof window.mapsInterop !== 'undefined' ? typeof window.mapsInterop.loadGoogleMaps : 'undefined'"));
+                Console.WriteLine($"[DEBUG] Aguardando mapsInterop... Tentativa {attempts + 1}/{maxAttempts}");
                 if (attempts++ >= maxAttempts)
                 {
                     throw new JSException("Timeout: mapsInterop não foi carregado.");
@@ -105,7 +108,7 @@ else
     private async Task WaitForGoogleMaps()
     {
         int attempts = 0;
-        const int maxAttempts = 200; // 20 segundos (200 * 100ms)
+        const int maxAttempts = 200;
         while (await JS.InvokeAsync<bool>("eval", "typeof google === 'undefined' || typeof google.maps === 'undefined' || !window.googleMapsLoaded"))
         {
             Console.WriteLine($"[DEBUG] Aguardando Google Maps API... Tentativa {attempts + 1}/{maxAttempts}");
@@ -118,13 +121,13 @@ else
     }
 
     [JSInvokable]
-    public async Task SetCoordinates(double lat, double lng)
+    public async Task SetCoordinatesWithAddress(double lat, double lng, string address)
     {
         decimal dLat = (decimal)lat;
         decimal dLng = (decimal)lng;
         if (OnMapClick.HasDelegate)
         {
-            await OnMapClick.InvokeAsync((dLat, dLng));
+            await OnMapClick.InvokeAsync((dLat, dLng, address));
         }
     }
 

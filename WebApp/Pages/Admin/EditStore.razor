@@ -1,5 +1,6 @@
 @page "/stores/edit/{id:int}"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -27,10 +28,25 @@ else
                 <label>Nome:</label>
                 <InputText class="form-control" @bind-Value="loja.Nome" />
             </div>
+
             <div class="mb-3">
-                <label>Endereço:</label>
-                <InputText class="form-control" @bind-Value="loja.Endereco" />
+                <label>Localização no Mapa:</label>
+                <GoogleMap
+                    Latitude="@(loja.Localizacao?.Latitude ?? 38.7223m)"
+                    Longitude="@(loja.Localizacao?.Longitude ?? -9.1393m)"
+                    OnMapClick="HandleMapClick" />
             </div>
+
+            <div class="alert alert-info">
+                Clique no mapa para mover o marcador e atualizar a localização.
+                <br />
+                Endereço: @loja.Endereco
+                <br />
+                Latitude: @(loja.Localizacao != null ? loja.Localizacao.Latitude : "Não definido")
+                <br />
+                Longitude: @(loja.Localizacao != null ? loja.Localizacao.Longitude : "Não definido")
+            </div>
+
             <button type="submit" class="btn btn-primary">Salvar</button>
             <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
         </EditForm>
@@ -61,10 +77,16 @@ else
         }
 
         loja = await Http.GetFromJsonAsync<Loja>($"api/Lojas/{id}");
+        if (loja?.Localizacao == null)
+        {
+            loja.Localizacao = new Localizacao { Latitude = 38.7223m, Longitude = -9.1393m };
+        }
     }
 
     private async Task HandleSubmit()
     {
+        if (loja == null) return;
+
         var response = await Http.PutAsJsonAsync($"api/Lojas/{id}", loja);
         if (response.IsSuccessStatusCode)
         {
@@ -75,6 +97,21 @@ else
         {
             var debug = await response.Content.ReadAsStringAsync();
             message = $"Erro ao atualizar loja: {debug}";
+        }
+    }
+
+    private async Task HandleMapClick((decimal lat, decimal lng, string address) data)
+    {
+        if (loja != null)
+        {
+            if (loja.Localizacao == null)
+            {
+                loja.Localizacao = new Localizacao();
+            }
+            loja.Localizacao.Latitude = data.lat;
+            loja.Localizacao.Longitude = data.lng;
+            loja.Endereco = data.address;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

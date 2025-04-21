@@ -1,5 +1,4 @@
 using WebAPI.Entities;
-using WebAPI.Observers;
 
 namespace WebAPI.Observers
 {

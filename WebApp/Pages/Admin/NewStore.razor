@@ -4,6 +4,8 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject IConfiguration Configuration
 
 <h2>Adicionar Nova Loja</h2>
 
@@ -14,60 +16,39 @@
 }
 else
 {
-    <EditForm Model="newStore" OnValidSubmit="HandleSubmit">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <div class="mb-3">
-            <label>Nome da Loja:</label>
-            <InputText class="form-control" @bind-Value="newStore.Nome" />
-        </div>
-        <div class="mb-3">
-            <label>Endereço:</label>
-            <InputText class="form-control" @bind-Value="newStore.Endereco" />
-        </div>
-
-        <!-- Alterna: usarMapa ou não -->
-        <div class="form-check">
-            <InputCheckbox class="form-check-input" @bind-Value="usarMapa" id="chkMapa" />
-            <label class="form-check-label" for="chkMapa">Selecionar localização no mapa?</label>
-        </div>
-
-        @if (usarMapa)
+    <div class="container-fluid">
+        @if (locationObtained)
         {
-            <!-- Se usar o mapa, exibimos GoogleMap e escondemos inputs manuais -->
-            <div class="mb-3">
-                <label>Selecione a Localização no Mapa:</label>
-                <GoogleMap
-                    Latitude="@tempLatitude"
-                    Longitude="@tempLongitude"
-                    OnMapClick="HandleMapClick" />
-            </div>
-
-            <div class="alert alert-info">
-                Clique no mapa para mover o marcador e defina lat/lng.
-                <br />
-                Latitude: @newStore.Localizacao.Latitude
-                <br />
-                Longitude: @newStore.Localizacao.Longitude
+            <!-- Mapa ocupando toda a área -->
+            <div class="row" style="height: 500px;">
+                <div class="col-12" style="height: 100%;">
+                    <GoogleMap
+                        Latitude="@tempLatitude"
+                        Longitude="@tempLongitude"
+                        OnMapClick="HandleMapClick"
+                        OnMapInitialized="HandleMapInitialized" />
+                </div>
             </div>
         }
         else
         {
-            <!-- Se não usar mapa, exibimos inputs manuais -->
-            <div class="mb-3">
-                <label>Latitude:</label>
-                <InputNumber class="form-control" @bind-Value="newStore.Localizacao.Latitude" />
-            </div>
-            <div class="mb-3">
-                <label>Longitude:</label>
-                <InputNumber class="form-control" @bind-Value="newStore.Localizacao.Longitude" />
-            </div>
+            <p>Obtendo localização...</p>
         }
 
-        <button type="submit" class="btn btn-primary">Guardar Loja</button>
-        <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
-    </EditForm>
+        <!-- Detalhes do supermercado selecionado -->
+        @if (selectedSupermarket != null)
+        {
+            <div class="alert alert-info mt-3">
+                <h5>Supermercado Selecionado:</h5>
+                <p><strong>Nome:</strong> @selectedSupermarket.Name</p>
+                <p><strong>Endereço:</strong> @selectedSupermarket.Address</p>
+                <p><strong>Latitude:</strong> @selectedSupermarket.Lat</p>
+                <p><strong>Longitude:</strong> @selectedSupermarket.Lng</p>
+                <button class="btn btn-primary" @onclick="HandleSubmit">Salvar Loja</button>
+                <button class="btn btn-secondary ms-2" @onclick="ClearSelection">Desmarcar</button>
+            </div>
+        }
+    </div>
 }
 
 @if (!string.IsNullOrEmpty(message))
@@ -76,23 +57,154 @@ else
 }
 
 @code {
-    private LojaModel newStore = new LojaModel();
-    private string message = "";
-    private bool usarMapa = true;
-    private decimal tempLatitude = 38.7223m;  // Lisboa
-    private decimal tempLongitude = -9.1393m;
+    private Loja newStore = new Loja();
 
-    protected override void OnInitialized()
+    public class GeolocationResult
     {
-        newStore.Localizacao = new LocalizacaoModel
+        public double Lat { get; set; }
+        public double Lng { get; set; }
+    }
+    private string message = "";
+    private decimal tempLatitude = 38.7223m;  // fallback (Lisboa)
+    private decimal tempLongitude = -9.1393m; // fallback (Lisboa)
+    private bool locationObtained = false;
+    private SupermarketModel? selectedSupermarket;
+    private DotNetObjectReference<NewStore>? _objectRef;
+    private string? currentMapElementId;
+    private (double lat, double lng)? userLocation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        newStore.Localizacao = new Localizacao
         {
             Latitude = 0m,
             Longitude = 0m
         };
+
+        _objectRef = DotNetObjectReference.Create(this);
+
+        // Tenta obter a localização atual do usuário
+        await GetUserLocation();
+    }
+
+    private async Task GetUserLocation()
+    {
+        try
+        {
+            var apiKey = Configuration["GoogleMapsApiKey"] ?? "SUA_CHAVE_AQUI";
+            await JSRuntime.InvokeVoidAsync("mapsInterop.loadGoogleMaps", apiKey);
+            await WaitForGoogleMaps();
+            await WaitForMapsInterop();
+
+            // Obtém a localização do usuário
+            var location = await JSRuntime.InvokeAsync<GeolocationResult>("mapsInterop.getUserLocation");
+            tempLatitude = Convert.ToDecimal(location.Lat);
+            tempLongitude = Convert.ToDecimal(location.Lng);
+            locationObtained = true;
+            Console.WriteLine($"[DEBUG] Localização do usuário obtida: Lat {tempLatitude}, Lng {tempLongitude}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Não foi possível obter a localização do usuário: {ex.Message}. Usando fallback (Lisboa).");
+            tempLatitude = 38.7223m;
+            tempLongitude = -9.1393m;
+            locationObtained = true;
+        }
+    }
+
+    private async Task HandleMapInitialized(string mapElementId)
+    {
+        currentMapElementId = mapElementId;
+        Console.WriteLine($"[DEBUG] Mapa inicializado com ID: {currentMapElementId}");
+
+        await JSRuntime.InvokeVoidAsync("mapsInterop.focusOnSupermarket", currentMapElementId, (double)tempLatitude, (double)tempLongitude);
+        
+        // Busca automática de supermercados
+        try
+        {
+            Console.WriteLine($"[DEBUG] Buscando supermercados em Lat {tempLatitude}, Lng {tempLongitude}");
+            await JSRuntime.InvokeVoidAsync("mapsInterop.findNearbySupermarkets", (double)tempLatitude, (double)tempLongitude, currentMapElementId, _objectRef);
+        }
+        catch (Exception ex)
+        {
+            message = $"Erro ao buscar supermercados: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task WaitForGoogleMaps()
+    {
+        int attempts = 0;
+        const int maxAttempts = 200;
+        while (await JSRuntime.InvokeAsync<bool>("eval", "typeof google === 'undefined' || typeof google.maps === 'undefined' || !window.googleMapsLoaded"))
+        {
+            Console.WriteLine($"[DEBUG] Aguardando Google Maps API... Tentativa {attempts + 1}/{maxAttempts}");
+            if (attempts++ >= maxAttempts)
+                throw new Exception("Timeout: Google Maps API não carregou.");
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task WaitForMapsInterop()
+    {
+        int attempts = 0;
+        const int maxAttempts = 200;
+        while (true)
+        {
+            try
+            {
+                bool isUndefined = await JSRuntime.InvokeAsync<bool>("eval", "typeof window.mapsInterop === 'undefined' || typeof window.mapsInterop.getUserLocation === 'undefined'");
+                if (!isUndefined)
+                {
+                    Console.WriteLine("[DEBUG] mapsInterop.getUserLocation encontrado após " + (attempts + 1) + " tentativas.");
+                    break;
+                }
+                Console.WriteLine($"[DEBUG] Aguardando mapsInterop.getUserLocation... Tentativa {attempts + 1}/{maxAttempts}");
+                if (attempts++ >= maxAttempts)
+                    throw new Exception("Timeout: mapsInterop.getUserLocation não foi carregado.");
+                await Task.Delay(100);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Erro na tentativa {attempts + 1}: {ex.Message}");
+                if (attempts++ >= maxAttempts)
+                    throw new Exception("Timeout: mapsInterop.getUserLocation não foi carregado. Erro: " + ex.Message);
+                await Task.Delay(100);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public void SelectSupermarket(SupermarketModel supermarket)
+    {
+        selectedSupermarket = supermarket;
+        newStore.Nome = supermarket.Name;
+        newStore.Endereco = supermarket.Address;
+        newStore.Localizacao.Latitude = (decimal)supermarket.Lat;
+        newStore.Localizacao.Longitude = (decimal)supermarket.Lng;
+        tempLatitude = (decimal)supermarket.Lat;
+        tempLongitude = (decimal)supermarket.Lng;
+        JSRuntime.InvokeVoidAsync("mapsInterop.focusOnSupermarket", currentMapElementId, supermarket.Lat, supermarket.Lng);
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedSupermarket = null;
+        newStore.Nome = "";
+        newStore.Endereco = "";
+        newStore.Localizacao.Latitude = 0m;
+        newStore.Localizacao.Longitude = 0m;
     }
 
     private async Task HandleSubmit()
     {
+        if (selectedSupermarket == null)
+        {
+            message = "Por favor, selecione um supermercado antes de salvar.";
+            return;
+        }
+
         var response = await Http.PostAsJsonAsync("api/Lojas", newStore);
         if (response.IsSuccessStatusCode)
         {
@@ -106,29 +218,19 @@ else
         }
     }
 
-    private async Task HandleMapClick((decimal lat, decimal lng) coords)
+    private async Task HandleMapClick((decimal lat, decimal lng, string address) data)
     {
-        newStore.Localizacao.Latitude = coords.lat;
-        newStore.Localizacao.Longitude = coords.lng;
-        await InvokeAsync(StateHasChanged);
+        // Não usado.
     }
 
     private void GoBack() => Navigation.NavigateTo("/stores");
 
-    public class LojaModel
+    public class SupermarketModel
     {
-        public int LojaId { get; set; }
-        public string Nome { get; set; } = "";
-        public string Endereco { get; set; } = "";
-        public int? LocalizacaoId { get; set; }
-        public LocalizacaoModel Localizacao { get; set; } = null!; // Garantido que não será null
-    }
-
-    public class LocalizacaoModel
-    {
-        public int LocalizacaoId { get; set; }
-        public decimal Latitude { get; set; } // Não nullable
-        public decimal Longitude { get; set; } // Não nullable
-        public string? GoogleMapsUrl { get; set; }
+        public string Name { get; set; } = "";
+        public string PlaceId { get; set; } = "";
+        public string Address { get; set; } = "";
+        public double Lat { get; set; }
+        public double Lng { get; set; }
     }
 }

@@ -38,7 +38,7 @@ namespace WebAPI.Migrations
                     b.HasKey("CategoriaId")
                         .HasName("Categorias_pkey");
 
-                    b.ToTable("Categorias");
+                    b.ToTable("Categorias", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.Localizacao", b =>
@@ -105,7 +105,7 @@ namespace WebAPI.Migrations
 
                     b.HasIndex("LocalizacaoId");
 
-                    b.ToTable("Lojas");
+                    b.ToTable("Lojas", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.Mensagem", b =>
@@ -134,7 +134,7 @@ namespace WebAPI.Migrations
 
                     b.HasIndex("RemetenteId");
 
-                    b.ToTable("Mensagens");
+                    b.ToTable("Mensagens", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.Produto", b =>
@@ -167,7 +167,7 @@ namespace WebAPI.Migrations
 
                     b.HasIndex("CategoriaId");
 
-                    b.ToTable("Produtos");
+                    b.ToTable("Produtos", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.RegistosPreco", b =>
@@ -212,7 +212,7 @@ namespace WebAPI.Migrations
 
                     b.HasIndex("UtilizadorId");
 
-                    b.ToTable("RegistosPrecos");
+                    b.ToTable("RegistosPrecos", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.TipoAcao", b =>
@@ -302,7 +302,7 @@ namespace WebAPI.Migrations
 
                     b.HasIndex("TipoUtilizadorId");
 
-                    b.ToTable("Utilizadores");
+                    b.ToTable("Utilizadores", (string)null);
                 });
 
             modelBuilder.Entity("WebAPI.Entities.Loja", b =>

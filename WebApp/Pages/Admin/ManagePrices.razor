@@ -3,27 +3,26 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
+@inject IJSRuntime JSRuntime
 
-<h2>Registos de Preço</h2>
+<h2>Gerir Preços</h2>
 
-@if (!AuthService.IsLoggedIn)
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
 {
-    <p>Você precisa estar logado para ver os registros de preço.</p>
+    <p>Você não tem permissão para gerir preços.</p>
     <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
 }
 else
 {
-    <div class="mb-3">
-        <button class="btn btn-primary" @onclick="NovoRegistro">Novo Registo de Preço</button>
-    </div>
+    <p>Aqui você pode listar e gerenciar os preços dos produtos.</p>
 
-    @if (registos == null)
+    @if (precos == null)
     {
         <p>Carregando...</p>
     }
-    else if (!registos.Any())
+    else if (!precos.Any())
     {
-        <p>Nenhum registro de preço encontrado.</p>
+        <p>Nenhum preço registrado.</p>
     }
     else
     {
@@ -35,29 +34,36 @@ else
                     <th>Loja</th>
                     <th>Preço</th>
                     <th>Data</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var r in registos)
+                @foreach (var p in precos)
                 {
                     <tr>
-                        <td>@r.RegistoPrecoId</td>
-                        <td>@r.Produto?.Nome</td>
-                        <td>@r.Loja?.Nome</td>
-                        <td>@r.Preco</td>
-                        <td>@r.DataRegisto.ToString("g")</td>
+                        <td>@p.RegistoId</td>
+                        <td>@p.ProdutoNome</td>
+                        <td>@p.LojaNome</td>
+                        <td>@p.Preco</td>
+                        <td>@p.DataRegisto.ToString("dd/MM/yyyy")</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(p.RegistoId))">Remover</button>
+                        </td>
                     </tr>
                 }
             </tbody>
         </table>
     }
+}
 
-    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+@if (!string.IsNullOrEmpty(message))
+{
+    <p style="color: red;">@message</p>
 }
 
 @code {
-    private List<RegistosPreco>? registos;
-    private string message = "";
+    private List<RegistoPrecoModel>? precos;
+    private string message = ""; // Inicializado e usado
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,15 +72,48 @@ else
             Navigation.NavigateTo("/login");
             return;
         }
-        if (!AuthService.IsLoggedIn)
+        if (!AuthService.IsAdmin && !AuthService.IsManager)
         {
-            Navigation.NavigateTo("/login");
+            Navigation.NavigateTo("/homeadmin");
             return;
         }
 
-        registos = await Http.GetFromJsonAsync<List<RegistosPreco>>("api/RegistosPrecos");
+        await CarregarPrecos();
+    }
+
+    private async Task CarregarPrecos()
+    {
+        precos = await Http.GetFromJsonAsync<List<RegistoPrecoModel>>("api/RegistosPreco");
+    }
+
+    private async Task Excluir(int registoId)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"Deseja remover o registro de preço {registoId}?");
+        if (!confirmar) return;
+
+        var response = await Http.DeleteAsync($"api/RegistosPreco/{registoId}");
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Registro de preço removido com sucesso!";
+            await CarregarPrecos();
+        }
+        else
+        {
+            var debug = await response.Content.ReadAsStringAsync();
+            message = $"Erro ao remover registro: {debug}";
+        }
     }
 
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
-    private void NovoRegistro() => Navigation.NavigateTo("/prices/new");
+
+    public class RegistoPrecoModel
+    {
+        public int RegistoId { get; set; }
+        public int ProdutoId { get; set; }
+        public string ProdutoNome { get; set; } = "";
+        public int LojaId { get; set; }
+        public string LojaNome { get; set; } = "";
+        public decimal Preco { get; set; }
+        public DateTime DataRegisto { get; set; }
+    }
 }

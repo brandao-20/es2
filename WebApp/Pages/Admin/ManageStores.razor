@@ -1,5 +1,6 @@
 @page "/stores"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -51,6 +52,7 @@ else
                         <td>@l.Localizacao?.Latitude</td>
                         <td>@l.Localizacao?.Longitude</td>
                         <td>
+                            <button class="btn btn-sm btn-info me-2" @onclick="@(() => VerDetalhes(l))">Ver Detalhes</button>
                             <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(l.LojaId))">Editar</button>
                             <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(l.LojaId))">Remover</button>
                         </td>
@@ -72,8 +74,41 @@ else
     <p>@message</p>
 }
 
+<!-- Modal para Detalhes -->
+@if (lojaSelecionada != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalhes da Loja: @lojaSelecionada.Nome</h5>
+                    <button type="button" class="btn-close" @onclick="FecharModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>ID:</strong> @lojaSelecionada.LojaId</p>
+                    <p><strong>Nome:</strong> @lojaSelecionada.Nome</p>
+                    <p><strong>Endereço:</strong> @lojaSelecionada.Endereco</p>
+                    <p><strong>Latitude:</strong> @lojaSelecionada.Localizacao?.Latitude</p>
+                    <p><strong>Longitude:</strong> @lojaSelecionada.Localizacao?.Longitude</p>
+                    @if (lojaSelecionada.Localizacao != null)
+                    {
+                        <GoogleMap
+                            Latitude="@(lojaSelecionada.Localizacao.Latitude ?? 38.7223m)"  // Fallback para Lisboa
+                            Longitude="@(lojaSelecionada.Localizacao.Longitude ?? -9.1393m)"  // Fallback para Lisboa
+                            />
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="FecharModal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<LojaModel>? lojas;
+    private LojaModel? lojaSelecionada;
     private string? message;
 
     // Paginação
@@ -151,6 +186,16 @@ else
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
     private void NovaLoja() => Navigation.NavigateTo("/stores/new");
     private void Editar(int lojaId) => Navigation.NavigateTo($"/stores/edit/{lojaId}");
+
+    private void VerDetalhes(LojaModel loja)
+    {
+        lojaSelecionada = loja;
+    }
+
+    private void FecharModal()
+    {
+        lojaSelecionada = null;
+    }
 
     private async Task Excluir(int lojaId)
     {

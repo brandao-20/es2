@@ -10,6 +10,8 @@ public partial class Loja
 
     public string Nome { get; set; } = null!;
 
+    public string Supermercado { get; set; } = null!; // Novo campo
+
     public string Endereco { get; set; } = null!;
 
     public int? LocalizacaoId { get; set; }

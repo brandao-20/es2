@@ -29,7 +29,7 @@ namespace WebAPI.Services
 
         public async Task SendMessageAsync(Mensagem mensagem)
         {
-            // Salva a mensagem no banco de dados
+            // Guarda a mensagem na base de dados
             await _mensagemRepository.AddAsync(mensagem);
 
             // Notifica todos os observadores
