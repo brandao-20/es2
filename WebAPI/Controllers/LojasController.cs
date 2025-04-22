@@ -41,6 +41,25 @@ namespace WebAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Loja>> Create(Loja loja)
         {
+            // Verifica se a loja já existe com base em PlaceId, nome/endereço ou coordenadas
+            var existingLojas = await _lojaRepository.GetAllWithDetailsAsync();
+            var existingLoja = existingLojas.FirstOrDefault(s =>
+                // Verifica pelo PlaceId (se disponível)
+                (!string.IsNullOrEmpty(s.PlaceId) && !string.IsNullOrEmpty(loja.PlaceId) && s.PlaceId.Equals(loja.PlaceId, StringComparison.OrdinalIgnoreCase)) ||
+                // Verifica por nome e endereço
+                (s.Nome.Equals(loja.Nome, StringComparison.OrdinalIgnoreCase) &&
+                 s.Endereco.Equals(loja.Endereco, StringComparison.OrdinalIgnoreCase)) ||
+                // Verifica por coordenadas (latitude e longitude)
+                (s.Localizacao != null && loja.Localizacao != null &&
+                 Math.Abs((s.Localizacao.Latitude ?? 0m) - (loja.Localizacao.Latitude ?? 0m)) < 0.0001m &&
+                 Math.Abs((s.Localizacao.Longitude ?? 0m) - (loja.Localizacao.Longitude ?? 0m)) < 0.0001m)
+            );
+
+            if (existingLoja != null)
+            {
+                return Conflict(new { message = "Esta loja já existe no sistema.", existingLoja.LojaId });
+            }
+
             if (loja.Localizacao != null)
             {
                 if (string.IsNullOrWhiteSpace(loja.Localizacao.GoogleMapsUrl) &&

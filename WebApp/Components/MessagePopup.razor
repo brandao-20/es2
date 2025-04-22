@@ -1,0 +1,81 @@
+<div class="@(IsVisible ? "popup-overlay show" : "popup-overlay")">
+    <div class="popup-content" style="background-color: @(Type == MessageType.Error ? "#ffcccc" : "#ccffcc");">
+        <h5 style="color: @(Type == MessageType.Error ? "#d32f2f" : "#2e7d32");">
+            @(Type == MessageType.Error ? "Erro" : "Sucesso")
+        </h5>
+        <p style="color: #333;">@Message</p>
+    </div>
+</div>
+
+<style>
+    .popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-start;
+        padding: 20px;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+        z-index: 1000;
+    }
+
+    .popup-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .popup-content {
+        background: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        max-width: 300px;
+        width: 100%;
+        text-align: center;
+    }
+
+    .popup-content h5 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+    }
+
+    .popup-content p {
+        margin: 0;
+        font-size: 14px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public MessageType Type { get; set; } = MessageType.Error;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    public enum MessageType
+    {
+        Error,
+        Success
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible)
+        {
+            // Aguarda 3 segundos e então fecha o popup
+            await Task.Delay(3000);
+            await OnClose.InvokeAsync();
+        }
+    }
+}

@@ -1,5 +1,5 @@
 .chat-container {
-    position: fixed; /* Alterado para fixed para ficar fixo na tela */
+    position: fixed; /* Fixo na tela */
     bottom: 20px;
     right: 20px;
     z-index: 1000;
@@ -8,7 +8,7 @@
 }
 
 .chatbot-button {
-    background-color: #800080; /* Roxo do outro projeto */
+    background-color: #800080; /* Roxo */
     color: white;
     border: none;
     border-radius: 50%;
@@ -32,11 +32,11 @@
 }
 
 .chatbot-chat {
-    width: 400px; /* Aumentado para 400px */
-    height: 80vh; /* Alterado para 80vh */
+    width: 400px;
+    height: 80vh;
     background-color: white;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    border-radius: 10px; /* Reduzido para 10px */
+    border-radius: 10px;
     display: flex;
     flex-direction: column;
 }
@@ -46,7 +46,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 10px;
-    background-color: #800080; /* Roxo do outro projeto */
+    background-color: #800080; /* Roxo */
     color: white;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
@@ -95,8 +95,8 @@
 .chat-footer input {
     flex: 1;
     padding: 10px;
-    border: 1px solid #ccc; /* Borda mais simples */
-    border-radius: 5px; /* Reduzido para 5px */
+    border: 1px solid #ccc;
+    border-radius: 5px;
     margin-right: 10px;
     font-size: 14px;
 }
@@ -139,7 +139,7 @@
 .message.ai {
     align-self: flex-start;
     text-align: start;
-    border: 1px solid #d3d3d3; /* Borda mais simples, sem fundo colorido */
+    border: 1px solid #d3d3d3;
 }
 
 .bg-danger {
@@ -150,25 +150,4 @@
 .bg-warning {
     background-color: #fff3cd;
     border-color: #ffeeba;
-}
-
-.close-icon {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background-color: grey;
-    color: white;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.close-icon:hover {
-    background: #850505; /* Vermelho escuro no hover */
 }

@@ -44,27 +44,30 @@ else
                 <p><strong>Endereço:</strong> @selectedSupermarket.Address</p>
                 <p><strong>Latitude:</strong> @selectedSupermarket.Lat</p>
                 <p><strong>Longitude:</strong> @selectedSupermarket.Lng</p>
-                <button class="btn btn-primary" @onclick="HandleSubmit">Salvar Loja</button>
+                <button class="btn btn-primary" @onclick="HandleSubmit">Guardar Loja</button>
                 <button class="btn btn-secondary ms-2" @onclick="ClearSelection">Desmarcar</button>
             </div>
         }
     </div>
 }
 
-@if (!string.IsNullOrEmpty(message))
-{
-    <p style="color:red">@message</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     private Loja newStore = new Loja();
+    private string MapId { get; set; } = Guid.NewGuid().ToString().Replace("-", "");
+    private bool googleMapsLoaded = false;
 
     public class GeolocationResult
     {
         public double Lat { get; set; }
         public double Lng { get; set; }
     }
-    private string message = "";
     private decimal tempLatitude = 38.7223m;  // fallback (Lisboa)
     private decimal tempLongitude = -9.1393m; // fallback (Lisboa)
     private bool locationObtained = false;
@@ -72,6 +75,12 @@ else
     private DotNetObjectReference<NewStore>? _objectRef;
     private string? currentMapElementId;
     private (double lat, double lng)? userLocation;
+    private List<Loja> existingStores = new List<Loja>();
+
+    // Propriedades para controlar o popup
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,8 +92,33 @@ else
 
         _objectRef = DotNetObjectReference.Create(this);
 
+        // Carrega as lojas existentes para verificação de duplicatas
+        await LoadExistingStores();
+
         // Tenta obter a localização atual do usuário
         await GetUserLocation();
+    }
+
+    private async Task LoadExistingStores()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<Loja>>("api/Lojas");
+            if (response != null)
+            {
+                existingStores = response;
+                Console.WriteLine($"[DEBUG] Lojas existentes carregadas: {existingStores.Count} lojas.");
+                foreach (var store in existingStores)
+                {
+                    Console.WriteLine($"[DEBUG] Loja ID: {store.LojaId}, Nome: {store.Nome}, Endereço: {store.Endereco}, PlaceId: {store.PlaceId}, Lat: {store.Localizacao?.Latitude}, Lng: {store.Localizacao?.Longitude}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro ao carregar lojas existentes: {ex.Message}", MessagePopup.MessageType.Error);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task GetUserLocation()
@@ -92,7 +126,11 @@ else
         try
         {
             var apiKey = Configuration["GoogleMapsApiKey"] ?? "SUA_CHAVE_AQUI";
-            await JSRuntime.InvokeVoidAsync("mapsInterop.loadGoogleMaps", apiKey);
+            if (!googleMapsLoaded)
+            {
+                await JSRuntime.InvokeVoidAsync("mapsInterop.loadGoogleMaps", apiKey);
+                googleMapsLoaded = true;
+            }
             await WaitForGoogleMaps();
             await WaitForMapsInterop();
 
@@ -127,7 +165,7 @@ else
         }
         catch (Exception ex)
         {
-            message = $"Erro ao buscar supermercados: {ex.Message}";
+            ShowPopup($"Erro ao buscar supermercados: {ex.Message}", MessagePopup.MessageType.Error);
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -136,20 +174,33 @@ else
     {
         int attempts = 0;
         const int maxAttempts = 200;
-        while (await JSRuntime.InvokeAsync<bool>("eval", "typeof google === 'undefined' || typeof google.maps === 'undefined' || !window.googleMapsLoaded"))
+        while (attempts < maxAttempts)
         {
+            try
+            {
+                var loaded = await JSRuntime.InvokeAsync<bool>("eval", "typeof google !== 'undefined' && typeof google.maps !== 'undefined' && window.googleMapsLoaded === true");
+                if (loaded)
+                {
+                    Console.WriteLine("[DEBUG] Google Maps API carregada com sucesso.");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Erro ao verificar Google Maps API: {ex.Message}");
+            }
             Console.WriteLine($"[DEBUG] Aguardando Google Maps API... Tentativa {attempts + 1}/{maxAttempts}");
-            if (attempts++ >= maxAttempts)
-                throw new Exception("Timeout: Google Maps API não carregou.");
             await Task.Delay(100);
+            attempts++;
         }
+        throw new Exception("Timeout: Google Maps API não carregou após 20 segundos.");
     }
 
     private async Task WaitForMapsInterop()
     {
         int attempts = 0;
         const int maxAttempts = 200;
-        while (true)
+        while (attempts < maxAttempts)
         {
             try
             {
@@ -157,21 +208,18 @@ else
                 if (!isUndefined)
                 {
                     Console.WriteLine("[DEBUG] mapsInterop.getUserLocation encontrado após " + (attempts + 1) + " tentativas.");
-                    break;
+                    return;
                 }
-                Console.WriteLine($"[DEBUG] Aguardando mapsInterop.getUserLocation... Tentativa {attempts + 1}/{maxAttempts}");
-                if (attempts++ >= maxAttempts)
-                    throw new Exception("Timeout: mapsInterop.getUserLocation não foi carregado.");
-                await Task.Delay(100);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[DEBUG] Erro na tentativa {attempts + 1}: {ex.Message}");
-                if (attempts++ >= maxAttempts)
-                    throw new Exception("Timeout: mapsInterop.getUserLocation não foi carregado. Erro: " + ex.Message);
-                await Task.Delay(100);
+                Console.WriteLine($"[DEBUG] Erro ao verificar mapsInterop: {ex.Message}");
             }
+            Console.WriteLine($"[DEBUG] Aguardando mapsInterop.getUserLocation... Tentativa {attempts + 1}/{maxAttempts}");
+            await Task.Delay(100);
+            attempts++;
         }
+        throw new Exception("Timeout: mapsInterop.getUserLocation não foi carregado após 20 segundos.");
     }
 
     [JSInvokable]
@@ -182,6 +230,7 @@ else
         newStore.Endereco = supermarket.Address;
         newStore.Localizacao.Latitude = (decimal)supermarket.Lat;
         newStore.Localizacao.Longitude = (decimal)supermarket.Lng;
+        newStore.PlaceId = supermarket.PlaceId; // Armazena o placeId
         tempLatitude = (decimal)supermarket.Lat;
         tempLongitude = (decimal)supermarket.Lng;
         JSRuntime.InvokeVoidAsync("mapsInterop.focusOnSupermarket", currentMapElementId, supermarket.Lat, supermarket.Lng);
@@ -195,27 +244,77 @@ else
         newStore.Endereco = "";
         newStore.Localizacao.Latitude = 0m;
         newStore.Localizacao.Longitude = 0m;
+        newStore.PlaceId = null;
+        StateHasChanged();
     }
 
     private async Task HandleSubmit()
     {
         if (selectedSupermarket == null)
         {
-            message = "Por favor, selecione um supermercado antes de salvar.";
+            ShowPopup("Por favor, selecione um supermercado antes de salvar.", MessagePopup.MessageType.Error);
             return;
         }
 
-        var response = await Http.PostAsJsonAsync("api/Lojas", newStore);
-        if (response.IsSuccessStatusCode)
+        // Log para depuração
+        Console.WriteLine($"[DEBUG] Tentando adicionar loja: Nome: {selectedSupermarket.Name}, Endereço: {selectedSupermarket.Address}, PlaceId: {newStore.PlaceId}, Lat: {newStore.Localizacao.Latitude}, Lng: {newStore.Localizacao.Longitude}");
+
+        // Verifica se a loja já existe com base em vários critérios
+        try
         {
-            message = "Loja criada com sucesso!";
-            Navigation.NavigateTo("/stores");
+            var existingStore = existingStores.FirstOrDefault(s =>
+            {
+                // Log para cada loja existente durante a verificação
+                Console.WriteLine($"[DEBUG] Verificando contra loja existente: Nome: {s.Nome}, Endereço: {s.Endereco}, PlaceId: {s.PlaceId}, Lat: {s.Localizacao?.Latitude}, Lng: {s.Localizacao?.Longitude}");
+
+                return
+                    // Verifica pelo placeId (se disponível)
+                    (!string.IsNullOrEmpty(s.PlaceId) && !string.IsNullOrEmpty(newStore.PlaceId) && s.PlaceId.Equals(newStore.PlaceId, StringComparison.OrdinalIgnoreCase)) ||
+                    // Verifica por nome e endereço
+                    (s.Nome.Equals(selectedSupermarket.Name, StringComparison.OrdinalIgnoreCase) &&
+                     s.Endereco.Equals(selectedSupermarket.Address, StringComparison.OrdinalIgnoreCase)) ||
+                    // Verifica por coordenadas (latitude e longitude)
+                    (s.Localizacao != null && newStore.Localizacao != null &&
+                     Math.Abs((s.Localizacao.Latitude ?? 0m) - (newStore.Localizacao.Latitude ?? 0m)) < 0.0001m &&
+                     Math.Abs((s.Localizacao.Longitude ?? 0m) - (newStore.Localizacao.Longitude ?? 0m)) < 0.0001m);
+            });
+
+            if (existingStore != null)
+            {
+                ShowPopup($"Esta loja já existe no sistema. Loja ID: {existingStore.LojaId}", MessagePopup.MessageType.Error);
+                Console.WriteLine($"[DEBUG] Loja duplicada detectada: ID: {existingStore.LojaId}, Nome: {existingStore.Nome}, Endereço: {existingStore.Endereco}, PlaceId: {existingStore.PlaceId}");
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            else
+            {
+                Console.WriteLine("[DEBUG] Nenhuma duplicata encontrada. Prosseguindo com a criação da loja.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro ao verificar lojas existentes: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Erro na verificação de duplicatas: {ex.Message}");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // Salva a loja se não houver duplicata
+        var saveResponse = await Http.PostAsJsonAsync("api/Lojas", newStore);
+        if (saveResponse.IsSuccessStatusCode)
+        {
+            // Atualiza a lista de lojas existentes
+            existingStores.Add(newStore);
+            // Redireciona para a página de listagem com a mensagem de sucesso na query string
+            Navigation.NavigateTo("/stores?successMessage=Loja%20criada%20com%20sucesso!");
         }
         else
         {
-            var debug = await response.Content.ReadAsStringAsync();
-            message = $"Erro ao criar loja: {debug}";
+            var debug = await saveResponse.Content.ReadAsStringAsync();
+            ShowPopup($"Erro ao criar loja: {debug}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Erro ao salvar loja: {debug}");
         }
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task HandleMapClick((decimal lat, decimal lng, string address) data)
@@ -224,6 +323,19 @@ else
     }
 
     private void GoBack() => Navigation.NavigateTo("/stores");
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
 
     public class SupermarketModel
     {

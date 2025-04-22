@@ -8,5 +8,6 @@
         public string Endereco { get; set; } = string.Empty;
         public int? LocalizacaoId { get; set; }
         public Localizacao? Localizacao { get; set; }
+        public string? PlaceId { get; set; } // Adicionada a propriedade PlaceId
     }
 }

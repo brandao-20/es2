@@ -53,15 +53,21 @@ else
     }
 }
 
-@if (!string.IsNullOrEmpty(message))
-{
-    <p>@message</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     [Parameter] public int id { get; set; }
     private Loja? loja;
-    private string? message;
+
+    // Propriedades para controlar o popup
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,13 +96,13 @@ else
         var response = await Http.PutAsJsonAsync($"api/Lojas/{id}", loja);
         if (response.IsSuccessStatusCode)
         {
-            message = "Loja atualizada com sucesso!";
-            Navigation.NavigateTo("/stores");
+            // Redireciona para a página de listagem com a mensagem de sucesso na query string
+            Navigation.NavigateTo("/stores?successMessage=Loja%20atualizada%20com%20sucesso!");
         }
         else
         {
             var debug = await response.Content.ReadAsStringAsync();
-            message = $"Erro ao atualizar loja: {debug}";
+            ShowPopup($"Erro ao atualizar loja: {debug}", MessagePopup.MessageType.Error);
         }
     }
 
@@ -116,4 +122,17 @@ else
     }
 
     private void GoBack() => Navigation.NavigateTo("/stores");
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
 }

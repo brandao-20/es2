@@ -16,7 +16,7 @@
                 </div>
                 <div id="chat-body" class="chat-body">
                     <div class="message ai">
-                        <span>Olá! 👋 Como posso ajudar a usar o Comparador de Preços?</span>
+                        <span>Olá! 👋 Como posso ajudar?</span>
                     </div>
                     <div class="message ai">
                         <span>Use <b>/ajuda</b> para ver os comandos disponíveis.</span>
@@ -40,11 +40,7 @@
             </div>
         }
         <button class="chatbot-button" @onclick="ToggleChat">
-            <span class="chatbot-icon">@(_isChatOpen ? "×" : "💬")</span>
-            @if (_isChatOpen)
-            {
-                <span class="close-icon" @onclick:stopPropagation="true" @onclick="ToggleChat">×</span>
-            }
+            <span class="chatbot-icon">@(_isChatOpen ? "×" : "🤖")</span>
         </button>
     </div>
 }
@@ -108,17 +104,17 @@
                     "/login - Informações sobre login<br/>" +
                     "/pesquisar - Como pesquisar produtos<br/>" +
                     "/registar_preco - Como registar preços<br/>" +
-                    "/lojas - Como gerenciar lojas<br/>" +
+                    "/lojas - Como gerir lojas<br/>" +
                     "/contactar - Como contactar administradores<br/>" +
                     "/relatorios - Informações sobre relatórios", TIPO.AVISO));
                 break;
             case "/login":
                 _messages.Add(new MensagemChatBot("ai", isAuthenticated
-                    ? "Você já está autenticado! Pode registar preços, gerenciar lojas e mais."
-                    : "Faça login para aceder a todas as funcionalidades, como registar preços, gerenciar lojas e exportar relatórios. Clique em 'Login' no menu superior.", TIPO.AVISO));
+                    ? "Você já está autenticado! Pode registar preços, gerir lojas e mais."
+                    : "Faça login para aceder a todas as funcionalidades, como registar preços, gerir lojas e exportar relatórios. Clique em 'Login' no menu superior.", TIPO.AVISO));
                 break;
             case "/pesquisar":
-                _messages.Add(new MensagemChatBot("ai", "Use a barra de pesquisa na página inicial para encontrar produtos. Pode filtrar por preço, categoria ou localização.", TIPO.SUCESSO));
+                _messages.Add(new MensagemChatBot("ai", "Clica na parte lateral em 'Produtos' e use a barra de pesquisa para encontrar os produtos. Pode filtrar por preço, categoria ou localização.", TIPO.SUCESSO));
                 break;
             case "/registar_preco":
                 _messages.Add(new MensagemChatBot("ai", isAuthenticated
@@ -128,7 +124,7 @@
             case "/lojas":
                 _messages.Add(new MensagemChatBot("ai", isAuthenticated
                     ? "Na página 'Lojas', pode visualizar, adicionar ou editar lojas (se for manager/admin)."
-                    : "Faça login para gerenciar lojas. Sem login, pode apenas visualizar a lista de lojas.", TIPO.AVISO));
+                    : "Faça login para gerir lojas. Sem login, pode apenas visualizar a lista de lojas.", TIPO.AVISO));
                 break;
             case "/contactar":
                 _messages.Add(new MensagemChatBot("ai", isAuthenticated
