@@ -13,13 +13,16 @@ namespace WebAPI.Controllers
     {
         private readonly IProdutoRepository _produtoRepository;
         private readonly ICategoriaRepository _categoriaRepository;
+        private readonly IRegistosPrecoRepository _registosPrecoRepository;
 
         public ProdutosController(
             IProdutoRepository produtoRepository,
-            ICategoriaRepository categoriaRepository)
+            ICategoriaRepository categoriaRepository,
+            IRegistosPrecoRepository registosPrecoRepository)
         {
             _produtoRepository = produtoRepository;
             _categoriaRepository = categoriaRepository;
+            _registosPrecoRepository = registosPrecoRepository;
         }
 
         // GET: api/Produtos?page=1&pageSize=5
@@ -29,18 +32,11 @@ namespace WebAPI.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
 
-            // Conta quantos produtos existem
             var totalItems = await _produtoRepository.CountAsync();
-
-            // Calcula quantos pular
             var skip = (page - 1) * pageSize;
-
-            // Busca apenas os itens da página
             var produtos = await _produtoRepository.GetPagedWithDetailsAsync(skip, pageSize);
 
-            // Retorna no header o total de itens
             Response.Headers["X-Total-Count"] = totalItems.ToString();
-
             return Ok(produtos);
         }
 
@@ -50,6 +46,34 @@ namespace WebAPI.Controllers
             var produto = await _produtoRepository.GetByIdWithDetailsAsync(id);
             if (produto == null) return NotFound();
             return Ok(produto);
+        }
+
+        [HttpGet("{id}/credibilidade")]
+        public async Task<ActionResult<object>> GetAdjustedCredibility(int id)
+        {
+            var produto = await _produtoRepository.GetByIdAsync(id);
+            if (produto == null)
+                return NotFound(new { message = "Produto não encontrado." });
+
+            var registos = await _registosPrecoRepository.GetByProdutoIdAsync(id);
+            if (registos == null || !registos.Any())
+                return Ok(new { Credibilidade = 0.0 });
+
+            double totalCredibilidade = 0;
+            int count = 0;
+
+            foreach (var registo in registos)
+            {
+                var meses = (DateTime.UtcNow - registo.DataRegisto).TotalDays / 30;
+                var adjusted = (double)registo.Credibilidade - (0.1 * meses);
+                if (adjusted < 0) adjusted = 0;
+
+                totalCredibilidade += adjusted;
+                count++;
+            }
+
+            var credibilidadeMedia = count > 0 ? totalCredibilidade / count : 0;
+            return Ok(new { Credibilidade = credibilidadeMedia });
         }
 
         [HttpPost]
@@ -101,7 +125,6 @@ namespace WebAPI.Controllers
             return NoContent();
         }
 
-        // Endpoint de pesquisa (opcional, não afeta paginação)
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<Produto>>> Search(
             [FromQuery] string? nome,

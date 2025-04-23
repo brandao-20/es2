@@ -2,6 +2,7 @@
 @using System.Net.Http.Json
 @using System.IdentityModel.Tokens.Jwt
 @using System.Security.Claims
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
@@ -27,70 +28,112 @@
 <hr />
 <button class="btn btn-danger" @onclick="LoginWithGoogle">Login com Google</button>
 
-@if (!string.IsNullOrEmpty(message))
-{
-    <p>@message</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     private LoginRequest loginRequest = new();
-    private string message = "";
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     private async Task HandleLogin()
     {
-        var response = await Http.PostAsJsonAsync("api/Auth/login", loginRequest);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            if (result is not null)
+            var response = await Http.PostAsJsonAsync("api/Auth/login", loginRequest);
+            if (response.IsSuccessStatusCode)
             {
-                // Armazena o token e role retornados
-                AuthService.Token = result.Token;
-                AuthService.Role = result.Role;
-
-                // Salva o token no localStorage
-                await LocalStorage.SetItemAsync("authToken", result.Token);
-
-                // Decodifica o token JWT para extrair os claims
-                var handler = new JwtSecurityTokenHandler();
-                var jwt = handler.ReadJwtToken(result.Token);
-
-                // Extrai o nome (claim de ClaimTypes.Name)
-                var nameClaim = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
-                if (!string.IsNullOrEmpty(nameClaim))
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result is not null)
                 {
-                    AuthService.UserName = nameClaim;
-                }
-                else
-                {
-                    AuthService.UserName = loginRequest.Username;
-                }
+                    // Armazena o token e role retornados
+                    AuthService.Token = result.Token;
+                    AuthService.Role = result.Role;
 
-                // Extrai o "utilizadorId" para que o front-end saiba qual conta está logada
-                var userIdClaim = jwt.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value;
-                if (int.TryParse(userIdClaim, out int userId))
-                {
-                    AuthService.UserId = userId;
-                }
+                    // Salva o token no localStorage
+                    await LocalStorage.SetItemAsync("authToken", result.Token);
 
-                // Redireciona conforme o papel do usuário
-                if (result.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
-                    Navigation.NavigateTo("/homeadmin");
-                else if (result.Role.Equals("UserManager", StringComparison.OrdinalIgnoreCase))
-                    Navigation.NavigateTo("/homeusermanager");
-                else
-                    Navigation.NavigateTo("/homeuser");
+                    // Decodifica o token JWT para extrair os claims
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(result.Token);
+
+                    // Extrai o nome (claim de ClaimTypes.Name)
+                    var nameClaim = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
+                    if (!string.IsNullOrEmpty(nameClaim))
+                    {
+                        AuthService.UserName = nameClaim;
+                    }
+                    else
+                    {
+                        AuthService.UserName = loginRequest.Username;
+                    }
+
+                    // Extrai o "utilizadorId" para que o front-end saiba qual conta está logada
+                    var userIdClaim = jwt.Claims.FirstOrDefault(c => c.Type == "utilizadorId")?.Value;
+                    if (int.TryParse(userIdClaim, out int userId))
+                    {
+                        AuthService.UserId = userId;
+                    }
+
+                    ShowPopup("Login realizado com sucesso!", MessagePopup.MessageType.Success);
+
+                    // Redireciona conforme o papel do usuário
+                    if (result.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+                        Navigation.NavigateTo("/homeadmin");
+                    else if (result.Role.Equals("UserManager", StringComparison.OrdinalIgnoreCase))
+                        Navigation.NavigateTo("/homeusermanager");
+                    else
+                        Navigation.NavigateTo("/homeuser");
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Credenciais inválidas. Verifique seu username e senha.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao fazer login: {errorContent}", MessagePopup.MessageType.Error);
+                }
             }
         }
-        else
+        catch (Exception ex)
         {
-            message = "Credenciais inválidas.";
+            ShowPopup($"Erro inesperado ao fazer login: {ex.Message}", MessagePopup.MessageType.Error);
         }
     }
 
     private void LoginWithGoogle()
     {
         Navigation.NavigateTo("http://localhost:5000/api/ExternalLogin/Google", forceLoad: true);
+    }
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     public class LoginRequest
@@ -103,5 +146,12 @@
     {
         public string Token { get; set; } = "";
         public string Role { get; set; } = "";
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }

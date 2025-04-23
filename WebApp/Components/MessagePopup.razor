@@ -1,7 +1,7 @@
 <div class="@(IsVisible ? "popup-overlay show" : "popup-overlay")">
-    <div class="popup-content" style="background-color: @(Type == MessageType.Error ? "#ffcccc" : "#ccffcc");">
-        <h5 style="color: @(Type == MessageType.Error ? "#d32f2f" : "#2e7d32");">
-            @(Type == MessageType.Error ? "Erro" : "Sucesso")
+    <div class="popup-content" style="background-color: @(GetBackgroundColor());">
+        <h5 style="color: @(GetTextColor());">
+            @(GetTitle())
         </h5>
         <p style="color: #333;">@Message</p>
     </div>
@@ -66,7 +66,41 @@
     public enum MessageType
     {
         Error,
-        Success
+        Success,
+        Info
+    }
+
+    private string GetBackgroundColor()
+    {
+        return Type switch
+        {
+            MessageType.Error => "#ffcccc",
+            MessageType.Success => "#ccffcc",
+            MessageType.Info => "#e0f7fa", // Tom de azul claro para Info
+            _ => "#ffffff"
+        };
+    }
+
+    private string GetTextColor()
+    {
+        return Type switch
+        {
+            MessageType.Error => "#d32f2f",
+            MessageType.Success => "#2e7d32",
+            MessageType.Info => "#0288d1", // Tom de azul escuro para o texto
+            _ => "#333333"
+        };
+    }
+
+    private string GetTitle()
+    {
+        return Type switch
+        {
+            MessageType.Error => "Erro",
+            MessageType.Success => "Sucesso",
+            MessageType.Info => "Informação",
+            _ => "Notificação"
+        };
     }
 
     protected override async Task OnParametersSetAsync()

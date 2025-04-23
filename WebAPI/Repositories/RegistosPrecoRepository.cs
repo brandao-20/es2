@@ -35,13 +35,25 @@ namespace WebAPI.Repositories
                 ?? throw new KeyNotFoundException($"RegistoPreco with ID {id} not found.");
         }
 
-        // Implementação do novo método
         public async Task<RegistosPreco?> GetLatestPriceAsync(int produtoId, int lojaId)
         {
             return await DbSet
                 .Where(r => r.ProdutoId == produtoId && r.LojaId == lojaId)
                 .OrderByDescending(r => r.DataRegisto)
                 .FirstOrDefaultAsync();
+        }
+
+        public async Task<IEnumerable<RegistosPreco>> GetByProdutoIdAsync(int produtoId)
+        {
+            return await DbSet
+                .Where(r => r.ProdutoId == produtoId)
+                .Include(r => r.Produto!)
+                    .ThenInclude(p => p.Categoria!)
+                .Include(r => r.Loja!)
+                    .ThenInclude(l => l.Localizacao!)
+                .Include(r => r.Utilizador!)
+                .Include(r => r.TipoAcao!)
+                .ToListAsync();
         }
     }
 }

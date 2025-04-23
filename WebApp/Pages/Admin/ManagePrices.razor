@@ -1,5 +1,6 @@
 @page "/prices"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -47,7 +48,7 @@ else
                         <td>@p.Preco</td>
                         <td>@p.DataRegisto.ToString("dd/MM/yyyy")</td>
                         <td>
-                            <button class="btn btn-sm btn-danger" @onclick="@(() => Excluir(p.RegistoId))">Remover</button>
+                            <button class="btn btn-sm btn-danger" @onclick="@(() => ConfirmarExclusao(p.RegistoId))">Remover</button>
                         </td>
                     </tr>
                 }
@@ -56,14 +57,81 @@ else
     }
 }
 
-@if (!string.IsNullOrEmpty(message))
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
+
+<!-- Popup de Confirmação para Exclusão -->
+@if (showConfirmPopup)
 {
-    <p style="color: red;">@message</p>
+    <div class="confirm-overlay">
+        <div class="confirm-content">
+            <h5 style="color: #d32f2f;">Confirmação</h5>
+            <p style="color: #333;">Deseja remover o registo de preço com ID "@registoIdToDelete"?</p>
+            <div class="confirm-buttons">
+                <button class="btn btn-danger" @onclick="Excluir">Sim</button>
+                <button class="btn btn-secondary" @onclick="FecharConfirmPopup">Não</button>
+            </div>
+        </div>
+    </div>
 }
+
+<style>
+    .confirm-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+
+    .confirm-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+    }
+
+    .confirm-content h5 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+    }
+
+    .confirm-content p {
+        margin: 0 0 20px 0;
+        font-size: 16px;
+    }
+
+    .confirm-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .confirm-buttons .btn {
+        padding: 8px 20px;
+        font-size: 14px;
+    }
+</style>
 
 @code {
     private List<RegistoPrecoModel>? precos;
-    private string message = ""; // Inicializado e usado
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+    private bool showConfirmPopup = false;
+    private int? registoIdToDelete = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,28 +151,109 @@ else
 
     private async Task CarregarPrecos()
     {
-        precos = await Http.GetFromJsonAsync<List<RegistoPrecoModel>>("api/RegistosPreco");
+        try
+        {
+            var response = await Http.GetAsync("api/RegistosPreco");
+            if (response.IsSuccessStatusCode)
+            {
+                precos = await response.Content.ReadFromJsonAsync<List<RegistoPrecoModel>>();
+            }
+            else
+            {
+                precos = new List<RegistoPrecoModel>();
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao carregar os preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao carregar os preços: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            precos = new List<RegistoPrecoModel>();
+            ShowPopup($"Erro inesperado ao carregar os preços: {ex.Message}", MessagePopup.MessageType.Error);
+        }
     }
 
-    private async Task Excluir(int registoId)
+    private void ConfirmarExclusao(int registoId)
     {
-        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"Deseja remover o registro de preço {registoId}?");
-        if (!confirmar) return;
+        registoIdToDelete = registoId;
+        showConfirmPopup = true;
+    }
 
-        var response = await Http.DeleteAsync($"api/RegistosPreco/{registoId}");
-        if (response.IsSuccessStatusCode)
+    private void FecharConfirmPopup()
+    {
+        showConfirmPopup = false;
+        registoIdToDelete = null;
+    }
+
+    private async Task Excluir()
+    {
+        if (registoIdToDelete == null) return;
+
+        try
         {
-            message = "Registro de preço removido com sucesso!";
-            await CarregarPrecos();
+            var response = await Http.DeleteAsync($"api/RegistosPreco/{registoIdToDelete}");
+            if (response.IsSuccessStatusCode)
+            {
+                ShowPopup($"Registo de preço com ID {registoIdToDelete} removido com sucesso!", MessagePopup.MessageType.Success);
+                await CarregarPrecos();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup($"Erro ao remover o registo de preço com ID {registoIdToDelete}. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao remover o registo de preço: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
         }
-        else
+        catch (Exception ex)
         {
-            var debug = await response.Content.ReadAsStringAsync();
-            message = $"Erro ao remover registro: {debug}";
+            ShowPopup($"Erro inesperado ao remover o registo de preço: {ex.Message}", MessagePopup.MessageType.Error);
         }
+
+        FecharConfirmPopup();
     }
 
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
 
     public class RegistoPrecoModel
     {
@@ -115,5 +264,12 @@ else
         public string LojaNome { get; set; } = "";
         public decimal Preco { get; set; }
         public DateTime DataRegisto { get; set; }
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }

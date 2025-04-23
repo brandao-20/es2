@@ -1,5 +1,6 @@
 ﻿@page "/produtos/novo"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -32,7 +33,6 @@ else
         </div>
         <div class="mb-3">
             <label>Categoria:</label>
-            <!-- Aqui você pode optar por um dropdown se tiver uma lista de categorias -->
             <select class="form-select" @bind="novoProduto.CategoriaId">
                 @if (categorias != null)
                 {
@@ -48,15 +48,19 @@ else
     </EditForm>
 }
 
-@if (!string.IsNullOrEmpty(mensagem))
-{
-    <p>@mensagem</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     private Produto novoProduto = new();
     private List<Categoria>? categorias;
-    private string? mensagem;
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override async Task OnInitializedAsync()
     {
@@ -67,31 +71,106 @@ else
         }
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
-            categorias = await Http.GetFromJsonAsync<List<Categoria>>("api/Categorias");
-            if (categorias?.Count > 0)
+            try
             {
-                novoProduto.CategoriaId = categorias[0].CategoriaId;
+                var response = await Http.GetAsync("api/Categorias");
+                if (response.IsSuccessStatusCode)
+                {
+                    categorias = await response.Content.ReadFromJsonAsync<List<Categoria>>();
+                    if (categorias?.Count > 0)
+                    {
+                        novoProduto.CategoriaId = categorias[0].CategoriaId;
+                    }
+                }
+                else
+                {
+                    categorias = new List<Categoria>();
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    try
+                    {
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                        if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                        {
+                            ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                        }
+                        else
+                        {
+                            ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                        }
+                    }
+                    catch
+                    {
+                        ShowPopup($"Erro ao carregar as categorias: {errorContent}", MessagePopup.MessageType.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                categorias = new List<Categoria>();
+                ShowPopup($"Erro inesperado ao carregar as categorias: {ex.Message}", MessagePopup.MessageType.Error);
             }
         }
     }
 
     private async Task HandleSubmit()
     {
-        // Garanta que o objeto de navegação não seja enviado
-        novoProduto.Categoria = null;
+        try
+        {
+            // Garanta que o objeto de navegação não seja enviado
+            novoProduto.Categoria = null;
 
-        var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
-        if (response.IsSuccessStatusCode)
-        {
-            mensagem = "Produto criado com sucesso!";
-            Navigation.NavigateTo("/produtos");
+            var response = await Http.PostAsJsonAsync("api/Produtos", novoProduto);
+            if (response.IsSuccessStatusCode)
+            {
+                // Redireciona com a mensagem de sucesso como parâmetro de consulta
+                Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Produto criado com sucesso!")}");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao criar o produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao criar o produto: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
         }
-        else
+        catch (Exception ex)
         {
-            var debugText = await response.Content.ReadAsStringAsync();
-            mensagem = $"Erro ao criar produto: {debugText}";
+            ShowPopup($"Erro inesperado ao criar o produto: {ex.Message}", MessagePopup.MessageType.Error);
         }
     }
 
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
     private void Voltar() => Navigation.NavigateTo("/produtos");
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
+    }
 }

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using WebAPI.Entities;
 
 namespace WebAPI.Repositories
@@ -10,5 +11,7 @@ namespace WebAPI.Repositories
         // Métodos para paginação:
         Task<int> CountAsync();
         Task<List<Loja>> GetPagedWithDetailsAsync(int skip, int take);
+
+        Task<IEnumerable<Loja>> FindWithDetailsAsync(Expression<Func<Loja, bool>> predicate);
     }
 }

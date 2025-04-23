@@ -1,5 +1,6 @@
 @page "/updateprice/{RegistoPrecoId:int}"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -61,10 +62,12 @@ else
     }
 }
 
-@if (!string.IsNullOrEmpty(mensagem))
-{
-    <p>@mensagem</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     [Parameter]
@@ -73,7 +76,9 @@ else
     private RegistosPreco? priceUpdate;
     private List<Produto>? produtos;
     private List<Loja>? lojas;
-    private string? mensagem;
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,37 +93,168 @@ else
             return;
         }
 
-        // Carregar o registo de preço existente
-        priceUpdate = await Http.GetFromJsonAsync<RegistosPreco>($"api/RegistosPrecos/{RegistoPrecoId}");
-        if (priceUpdate == null)
+        try
         {
-            mensagem = "Registo de preço não encontrado.";
-            return;
-        }
+            // Carregar o registo de preço existente
+            var priceResponse = await Http.GetAsync($"api/RegistosPrecos/{RegistoPrecoId}");
+            if (priceResponse.IsSuccessStatusCode)
+            {
+                priceUpdate = await priceResponse.Content.ReadFromJsonAsync<RegistosPreco>();
+                if (priceUpdate == null)
+                {
+                    ShowPopup("Registo de preço não encontrado.", MessagePopup.MessageType.Error);
+                    return;
+                }
+            }
+            else
+            {
+                priceUpdate = null;
+                var errorContent = await priceResponse.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao carregar o registo de preço. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao carregar o registo de preço: {errorContent}", MessagePopup.MessageType.Error);
+                }
+                return;
+            }
 
-        // Carregar produtos e lojas para exibição
-        produtos = await Http.GetFromJsonAsync<List<Produto>>("api/Produtos");
-        lojas = await Http.GetFromJsonAsync<List<Loja>>("api/Lojas");
+            // Carregar produtos
+            var prodResponse = await Http.GetAsync("api/Produtos");
+            if (prodResponse.IsSuccessStatusCode)
+            {
+                produtos = await prodResponse.Content.ReadFromJsonAsync<List<Produto>>();
+            }
+            else
+            {
+                produtos = new List<Produto>();
+                var errorContent = await prodResponse.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao carregar os produtos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao carregar os produtos: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
+
+            // Carregar lojas
+            var lojaResponse = await Http.GetAsync("api/Lojas");
+            if (lojaResponse.IsSuccessStatusCode)
+            {
+                lojas = await lojaResponse.Content.ReadFromJsonAsync<List<Loja>>();
+            }
+            else
+            {
+                lojas = new List<Loja>();
+                var errorContent = await lojaResponse.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao carregar as lojas. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao carregar as lojas: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            priceUpdate = null;
+            produtos = new List<Produto>();
+            lojas = new List<Loja>();
+            ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
+        }
     }
 
     private async Task HandleUpdate()
     {
         if (priceUpdate == null) return;
 
-        var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{priceUpdate.RegistoPrecoId}", priceUpdate);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            mensagem = "Preço atualizado com sucesso!";
-            Navigation.NavigateTo($"/productdetails/{priceUpdate.ProdutoId}");
+            var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{priceUpdate.RegistoPrecoId}", priceUpdate);
+            if (response.IsSuccessStatusCode)
+            {
+                ShowPopup("Preço atualizado com sucesso!", MessagePopup.MessageType.Success);
+                Navigation.NavigateTo($"/productdetails/{priceUpdate.ProdutoId}");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao atualizar o preço. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao atualizar o preço: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
         }
-        else
+        catch (Exception ex)
         {
-            mensagem = "Erro ao atualizar preço.";
+            ShowPopup($"Erro inesperado ao atualizar o preço: {ex.Message}", MessagePopup.MessageType.Error);
         }
+    }
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void Voltar()
     {
-        Navigation.NavigateTo($"/productdetails/{priceUpdate?.ProdutoId}");
+        Navigation.NavigateTo($"/productdetails/{priceUpdate?.ProdutoId ?? 0}");
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }

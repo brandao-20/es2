@@ -1,4 +1,5 @@
 @page "/users/edit/{id:int}"
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -50,16 +51,20 @@ else
     }
 }
 
-@if (!string.IsNullOrEmpty(mensagem))
-{
-    <p>@mensagem</p>
-}
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
 
 @code {
     [Parameter] public int id { get; set; }
     private UserDto? usuario;
-    private string? mensagem;
     private string? novaPassword;
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,26 +75,94 @@ else
         }
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
-            // Carrega o user
-            usuario = await Http.GetFromJsonAsync<UserDto>($"api/Utilizadores/adminget/{id}");
+            try
+            {
+                var response = await Http.GetAsync($"api/Utilizadores/adminget/{id}");
+                if (response.IsSuccessStatusCode)
+                {
+                    usuario = await response.Content.ReadFromJsonAsync<UserDto>();
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    try
+                    {
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                        if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                        {
+                            ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                        }
+                        else
+                        {
+                            ShowPopup("Erro ao carregar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                        }
+                    }
+                    catch
+                    {
+                        ShowPopup($"Erro ao carregar o utilizador: {errorContent}", MessagePopup.MessageType.Error);
+                    }
+                    usuario = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowPopup($"Erro inesperado ao carregar o utilizador: {ex.Message}", MessagePopup.MessageType.Error);
+                usuario = null;
+            }
         }
     }
 
     private async Task HandleSubmit()
     {
         if (usuario == null) return;
-        usuario.NewPassword = novaPassword; // se existir
 
-        var response = await Http.PutAsJsonAsync($"api/Utilizadores/adminedit/{id}", usuario);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            mensagem = "Utilizador atualizado com sucesso!";
-            Navigation.NavigateTo("/users");
+            usuario.NewPassword = novaPassword; // se existir
+            var response = await Http.PutAsJsonAsync($"api/Utilizadores/adminedit/{id}", usuario);
+            if (response.IsSuccessStatusCode)
+            {
+                ShowPopup("Utilizador atualizado com sucesso!", MessagePopup.MessageType.Success);
+                Navigation.NavigateTo("/users");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao atualizar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao atualizar o utilizador: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
         }
-        else
+        catch (Exception ex)
         {
-            mensagem = "Erro ao atualizar utilizador.";
+            ShowPopup($"Erro inesperado ao atualizar o utilizador: {ex.Message}", MessagePopup.MessageType.Error);
         }
+    }
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void Voltar() => Navigation.NavigateTo("/users");
@@ -101,5 +174,12 @@ else
         public string Email { get; set; } = "";
         public string Tipo { get; set; } = "User"; // Admin, UserManager, User
         public string? NewPassword { get; set; }
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 using WebAPI.Context;
 using WebAPI.Entities;
 
@@ -40,6 +41,14 @@ namespace WebAPI.Repositories
                 .OrderBy(l => l.LojaId)
                 .Skip(skip)
                 .Take(take)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Loja>> FindWithDetailsAsync(Expression<Func<Loja, bool>> predicate)
+        {
+            return await _context.Lojas
+                .Include(l => l.Localizacao)
+                .Where(predicate)
                 .ToListAsync();
         }
     }

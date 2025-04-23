@@ -1,4 +1,5 @@
 @page "/profile"
+@using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -10,42 +11,142 @@
 
 <button class="btn btn-warning" @onclick="AskDelete">Eliminar Conta</button>
 
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
+
+<!-- Popup de Confirmação para Exclusão -->
 @if (showConfirm)
 {
-    <div class="alert alert-danger mt-3">
-        <p>Tem certeza de que deseja eliminar a conta? Esta ação é irreversível.</p>
-        <button class="btn btn-danger me-2" @onclick="DeleteAccount">Sim, eliminar</button>
-        <button class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+    <div class="confirm-overlay">
+        <div class="confirm-content">
+            <h5 style="color: #d32f2f;">Confirmação</h5>
+            <p style="color: #333;">Tem certeza de que deseja eliminar a sua conta? Esta ação é irreversível.</p>
+            <div class="confirm-buttons">
+                <button class="btn btn-danger" @onclick="DeleteAccount">Sim, eliminar</button>
+                <button class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+            </div>
+        </div>
     </div>
 }
 
-@if (!string.IsNullOrEmpty(message))
-{
-    <p>@message</p>
-}
+<style>
+    .confirm-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+
+    .confirm-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+    }
+
+    .confirm-content h5 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+    }
+
+    .confirm-content p {
+        margin: 0 0 20px 0;
+        font-size: 16px;
+    }
+
+    .confirm-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .confirm-buttons .btn {
+        padding: 8px 20px;
+        font-size: 14px;
+    }
+</style>
 
 @code {
-    private bool showConfirm;
-    private string message;
+    private bool showConfirm = false;
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     private void AskDelete() => showConfirm = true;
     private void CancelDelete() => showConfirm = false;
 
     private async Task DeleteAccount()
     {
-        var response = await Http.DeleteAsync("api/Utilizadores/me");
-        if (response.IsSuccessStatusCode)
+        try
         {
-            message = "Conta removida com sucesso.";
-            // Limpa dados de autenticação local
-            AuthService.Clear();
-            // Redireciona para home (ou login)
-            Navigation.NavigateTo("/");
+            var response = await Http.DeleteAsync("api/Utilizadores/me");
+            if (response.IsSuccessStatusCode)
+            {
+                ShowPopup("Conta removida com sucesso!", MessagePopup.MessageType.Success);
+                // Limpa dados de autenticação local
+                AuthService.Clear();
+                // Redireciona para home (ou login)
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao remover a conta. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao remover a conta: {errorContent}", MessagePopup.MessageType.Error);
+                }
+            }
         }
-        else
+        catch (Exception ex)
         {
-            message = "Ocorreu um erro ao remover a conta.";
+            ShowPopup($"Erro inesperado ao remover a conta: {ex.Message}", MessagePopup.MessageType.Error);
         }
+
         showConfirm = false;
+    }
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }

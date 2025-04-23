@@ -1,5 +1,6 @@
 @page "/searchproducts"
 @using WebApp.Models
+@using WebApp.Components
 @inject HttpClient Http
 
 <h3>Pesquisar Produtos</h3>
@@ -98,15 +99,24 @@ else
     </table>
 }
 
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
+
 @code {
     private bool showFilters;
     private bool useName;
     private bool useCategory;
     private bool useStore;
     private bool useDate;
-
     private List<Produto> products = new();
     private SearchCriteria searchCriteria = new SearchCriteria();
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override void OnInitialized()
     {
@@ -136,29 +146,76 @@ else
 
     private async Task HandleSearch()
     {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            Console.WriteLine($"[DEBUG] Após StateHasChanged - useName: {useName}, searchCriteria.Name: '{searchCriteria.Name}'");
+
+            var query = new List<string>();
+            if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
+                query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
+            if (useCategory && searchCriteria.CategoryId.HasValue)
+                query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
+            if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
+                query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
+            if (useDate && searchCriteria.DateFrom.HasValue)
+                query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
+
+            var queryString = string.Join("&", query);
+            Console.WriteLine($"[DEBUG] Enviando requisição para: api/Produtos/search?{queryString}");
+
+            var response = await Http.GetAsync($"api/Produtos/search?{queryString}");
+            var responseContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"[DEBUG] Resposta bruta da API: {responseContent}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                products = await response.Content.ReadFromJsonAsync<List<Produto>>() ?? new List<Produto>();
+                Console.WriteLine($"[DEBUG] Produtos desserializados: {products.Count}");
+                if (!products.Any())
+                {
+                    ShowPopup("Nenhum produto encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                }
+            }
+            else
+            {
+                products = new List<Produto>();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(responseContent);
+                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
+                    {
+                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
+                    }
+                    else
+                    {
+                        ShowPopup("Erro ao realizar a pesquisa. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                    }
+                }
+                catch
+                {
+                    ShowPopup($"Erro ao realizar a pesquisa: {responseContent}", MessagePopup.MessageType.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            products = new List<Produto>();
+            ShowPopup($"Erro inesperado ao realizar a pesquisa: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+    }
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
         await InvokeAsync(StateHasChanged);
-        Console.WriteLine($"[DEBUG] Após StateHasChanged - useName: {useName}, searchCriteria.Name: '{searchCriteria.Name}'");
-
-        var query = new List<string>();
-        if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
-            query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
-        if (useCategory && searchCriteria.CategoryId.HasValue)
-            query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
-        if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
-            query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
-        if (useDate && searchCriteria.DateFrom.HasValue)
-            query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
-
-        var queryString = string.Join("&", query);
-        Console.WriteLine($"[DEBUG] Enviando requisição para: api/Produtos/search?{queryString}");
-
-        var response = await Http.GetAsync($"api/Produtos/search?{queryString}");
-        var responseContent = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"[DEBUG] Resposta bruta da API: {responseContent}");
-
-        products = await response.Content.ReadFromJsonAsync<List<Produto>>() 
-                    ?? new List<Produto>();
-        Console.WriteLine($"[DEBUG] Produtos desserializados: {products.Count}");
     }
 
     public class SearchCriteria
@@ -167,5 +224,13 @@ else
         public int? CategoryId { get; set; }
         public string Store { get; set; } = "";
         public DateTime? DateFrom { get; set; }
+        // Comentário movido: "serviço de autenticação não inicializado" (parece não estar relacionado com esta classe)
+    }
+
+    private class ErrorResponse
+    {
+        public int StatusCode { get; set; }
+        public string Message { get; set; } = "";
+        public string Detail { get; set; } = "";
     }
 }
