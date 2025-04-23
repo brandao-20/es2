@@ -31,19 +31,25 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        public async Task<ActionResult<ApiResponse<LoginResponse>>> Login([FromBody] LoginRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return BadRequest(ApiResponse<LoginResponse>.ErrorResponse("O nome de utilizador é obrigatório.", "INVALID_USERNAME"));
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(ApiResponse<LoginResponse>.ErrorResponse("A senha é obrigatória.", "INVALID_PASSWORD"));
+
             Expression<Func<Utilizador, bool>> predicate = u => u.Username == request.Username;
             var users = await _utilizadorRepository.FindWithDetailsAsync(predicate);
             var user = users.FirstOrDefault();
 
             if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.Password))
-            {
-                return Unauthorized("Credenciais inválidas");
-            }
+                return Unauthorized(ApiResponse<LoginResponse>.ErrorResponse("Credenciais inválidas.", "INVALID_CREDENTIALS", 401));
 
             var token = GenerateJwtToken(user);
-            return Ok(new { token, role = _roleService.NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER") });
+            var role = _roleService.NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER");
+            var response = new LoginResponse { Token = token, Role = role };
+            return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Login realizado com sucesso."));
         }
 
         private string GenerateJwtToken(Utilizador user)
@@ -82,5 +88,11 @@ namespace WebAPI.Controllers
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+    }
+
+    public class LoginResponse
+    {
+        public string Token { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
     }
 }

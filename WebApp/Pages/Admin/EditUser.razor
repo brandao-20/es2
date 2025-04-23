@@ -1,4 +1,5 @@
 @page "/users/edit/{id:int}"
+@using System.Text.RegularExpressions
 @using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
@@ -31,7 +32,6 @@ else
                 <label>Email:</label>
                 <InputText class="form-control" @bind-Value="usuario.Email" />
             </div>
-            <!-- Se quiser permitir mudar a password, exibir um campo para nova password -->
             <div class="mb-3">
                 <label>Nova Password (opcional):</label>
                 <InputText type="password" class="form-control" @bind-Value="novaPassword" />
@@ -65,6 +65,7 @@ else
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+    private bool shouldRedirect = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,27 +81,21 @@ else
                 var response = await Http.GetAsync($"api/Utilizadores/adminget/{id}");
                 if (response.IsSuccessStatusCode)
                 {
-                    usuario = await response.Content.ReadFromJsonAsync<UserDto>();
+                    var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserDto>>();
+                    if (apiResponse?.Success == true)
+                    {
+                        usuario = apiResponse.Data;
+                    }
+                    else
+                    {
+                        ShowPopup(apiResponse?.Message ?? "Erro ao carregar o utilizador.", MessagePopup.MessageType.Error);
+                        usuario = null;
+                    }
                 }
                 else
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    try
-                    {
-                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                        if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                        {
-                            ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                        }
-                        else
-                        {
-                            ShowPopup("Erro ao carregar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                        }
-                    }
-                    catch
-                    {
-                        ShowPopup($"Erro ao carregar o utilizador: {errorContent}", MessagePopup.MessageType.Error);
-                    }
+                    var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserDto>>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                     usuario = null;
                 }
             }
@@ -118,31 +113,83 @@ else
 
         try
         {
-            usuario.NewPassword = novaPassword; // se existir
-            var response = await Http.PutAsJsonAsync($"api/Utilizadores/adminedit/{id}", usuario);
-            if (response.IsSuccessStatusCode)
+            // Validações iniciais
+            if (string.IsNullOrWhiteSpace(usuario.Username))
             {
-                ShowPopup("Utilizador atualizado com sucesso!", MessagePopup.MessageType.Success);
-                Navigation.NavigateTo("/users");
+                ShowPopup("O nome de utilizador é obrigatório.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(usuario.Email) || !IsValidEmail(usuario.Email))
+            {
+                ShowPopup("Email inválido.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            // Verificar se o username ou email já existe (exceto para o próprio utilizador)
+            var checkResponse = await Http.GetAsync($"api/Utilizadores/check?username={Uri.EscapeDataString(usuario.Username)}&email={Uri.EscapeDataString(usuario.Email)}");
+            if (checkResponse.IsSuccessStatusCode)
+            {
+                var checkResult = await checkResponse.Content.ReadFromJsonAsync<ApiResponse<CheckAvailabilityResponse>>();
+                if (checkResult?.Success == true)
+                {
+                    if (checkResult.Data?.UsernameExists == true)
+                    {
+                        // Verificar se o username pertence a outro utilizador
+                        var existingUsername = await Http.GetAsync($"api/Utilizadores/adminget/{id}");
+                        var existingUser = await existingUsername.Content.ReadFromJsonAsync<ApiResponse<UserDto>>();
+                        if (existingUser?.Data?.Username.ToLower() != usuario.Username.ToLower())
+                        {
+                            ShowPopup("O nome de utilizador já está em uso.", MessagePopup.MessageType.Error);
+                            return;
+                        }
+                    }
+                    if (checkResult.Data?.EmailExists == true)
+                    {
+                        // Verificar se o email pertence a outro utilizador
+                        var existingEmail = await Http.GetAsync($"api/Utilizadores/adminget/{id}");
+                        var existingUser = await existingEmail.Content.ReadFromJsonAsync<ApiResponse<UserDto>>();
+                        if (existingUser?.Data?.Email.ToLower() != usuario.Email.ToLower())
+                        {
+                            ShowPopup("O email já está em uso.", MessagePopup.MessageType.Error);
+                            return;
+                        }
+                    }
+                }
+                else
+                {
+                    ShowPopup(checkResult?.Message ?? "Erro ao verificar disponibilidade.", MessagePopup.MessageType.Error);
+                    return;
+                }
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
+                ShowPopup("Erro ao verificar disponibilidade de username/email.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            usuario.NewPassword = novaPassword; // se existir
+            var response = await Http.PutAsJsonAsync($"api/Utilizadores/adminedit/{id}", usuario);
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+
+            if (response.IsSuccessStatusCode && apiResponse?.Success == true)
+            {
+                shouldRedirect = true;
+                ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+            }
+            else
+            {
+                if (apiResponse?.ErrorCode == "DUPLICATE_USERNAME")
                 {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao atualizar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup("O nome de utilizador já está em uso.", MessagePopup.MessageType.Error);
                 }
-                catch
+                else if (apiResponse?.ErrorCode == "DUPLICATE_EMAIL")
                 {
-                    ShowPopup($"Erro ao atualizar o utilizador: {errorContent}", MessagePopup.MessageType.Error);
+                    ShowPopup("O email já está em uso.", MessagePopup.MessageType.Error);
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? "Erro ao atualizar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
             }
         }
@@ -150,6 +197,12 @@ else
         {
             ShowPopup($"Erro inesperado ao atualizar o utilizador: {ex.Message}", MessagePopup.MessageType.Error);
         }
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        var emailRegex = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+        return Regex.IsMatch(email, emailRegex);
     }
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
@@ -163,6 +216,12 @@ else
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+
+        if (shouldRedirect)
+        {
+            Navigation.NavigateTo("/users");
+            shouldRedirect = false;
+        }
     }
 
     private void Voltar() => Navigation.NavigateTo("/users");
@@ -176,10 +235,18 @@ else
         public string? NewPassword { get; set; }
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
+    }
+
+    private class CheckAvailabilityResponse
+    {
+        public bool UsernameExists { get; set; }
+        public bool EmailExists { get; set; }
     }
 }

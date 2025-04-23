@@ -13,48 +13,45 @@
     <p>Você não tem permissão para gerir preços.</p>
     <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
 }
+else if (!isInitialized)
+{
+    <p>Carregando preços...</p>
+}
+else if (precos == null || !precos.Any())
+{
+    <p>Nenhum preço registrado.</p>
+}
 else
 {
     <p>Aqui você pode listar e gerenciar os preços dos produtos.</p>
 
-    @if (precos == null)
-    {
-        <p>Carregando...</p>
-    }
-    else if (!precos.Any())
-    {
-        <p>Nenhum preço registrado.</p>
-    }
-    else
-    {
-        <table class="table">
-            <thead>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Produto</th>
+                <th>Loja</th>
+                <th>Preço</th>
+                <th>Data</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in precos)
+            {
                 <tr>
-                    <th>ID</th>
-                    <th>Produto</th>
-                    <th>Loja</th>
-                    <th>Preço</th>
-                    <th>Data</th>
-                    <th>Ações</th>
+                    <td>@p.RegistoId</td>
+                    <td>@p.ProdutoNome</td>
+                    <td>@p.LojaNome</td>
+                    <td>@p.Preco.ToString("C")</td>
+                    <td>@p.DataRegisto.ToString("dd/MM/yyyy")</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" @onclick="@(() => ConfirmarExclusao(p.RegistoId))">Remover</button>
+                    </td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach (var p in precos)
-                {
-                    <tr>
-                        <td>@p.RegistoId</td>
-                        <td>@p.ProdutoNome</td>
-                        <td>@p.LojaNome</td>
-                        <td>@p.Preco</td>
-                        <td>@p.DataRegisto.ToString("dd/MM/yyyy")</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" @onclick="@(() => ConfirmarExclusao(p.RegistoId))">Remover</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+            }
+        </tbody>
+    </table>
 }
 
 <!-- Popup para mensagens -->
@@ -127,6 +124,7 @@ else
 
 @code {
     private List<RegistoPrecoModel>? precos;
+    private bool isInitialized = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
@@ -140,6 +138,7 @@ else
             Navigation.NavigateTo("/login");
             return;
         }
+
         if (!AuthService.IsAdmin && !AuthService.IsManager)
         {
             Navigation.NavigateTo("/homeadmin");
@@ -153,37 +152,37 @@ else
     {
         try
         {
-            var response = await Http.GetAsync("api/RegistosPreco");
+            Console.WriteLine("[DEBUG] Carregando registos de preços...");
+            var response = await Http.GetAsync("api/RegistosPrecos");
             if (response.IsSuccessStatusCode)
             {
-                precos = await response.Content.ReadFromJsonAsync<List<RegistoPrecoModel>>();
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<RegistoPrecoModel>>>();
+                if (apiResponse?.Success == true)
+                {
+                    precos = apiResponse.Data ?? new List<RegistoPrecoModel>();
+                    Console.WriteLine($"[DEBUG] Registos de preços carregados: {precos.Count}");
+                }
+                else
+                {
+                    precos = new List<RegistoPrecoModel>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar os preços.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 precos = new List<RegistoPrecoModel>();
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar os preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar os preços: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar os preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
         {
             precos = new List<RegistoPrecoModel>();
             ShowPopup($"Erro inesperado ao carregar os preços: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+        finally
+        {
+            isInitialized = true;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -205,31 +204,24 @@ else
 
         try
         {
-            var response = await Http.DeleteAsync($"api/RegistosPreco/{registoIdToDelete}");
+            Console.WriteLine($"[DEBUG] Excluindo registo de preço com ID: {registoIdToDelete}");
+            var response = await Http.DeleteAsync($"api/RegistosPrecos/{registoIdToDelete}");
             if (response.IsSuccessStatusCode)
             {
-                ShowPopup($"Registo de preço com ID {registoIdToDelete} removido com sucesso!", MessagePopup.MessageType.Success);
-                await CarregarPrecos();
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                if (apiResponse?.Success == true)
+                {
+                    ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+                    await CarregarPrecos();
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? $"Erro ao remover o registo de preço com ID {registoIdToDelete}.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup($"Erro ao remover o registo de preço com ID {registoIdToDelete}. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao remover o registo de preço: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup($"Erro ao remover o registo de preço com ID {registoIdToDelete}. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -266,10 +258,12 @@ else
         public DateTime DataRegisto { get; set; }
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

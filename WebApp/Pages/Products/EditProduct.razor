@@ -12,50 +12,61 @@
     <p>Você não tem permissão para editar produtos.</p>
     <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
 }
+else if (id <= 0)
+{
+    <p class="text-danger">ID do produto inválido.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else if (!isInitialized)
+{
+    <p>Carregando dados do produto...</p>
+}
+else if (produto == null)
+{
+    <p class="text-danger">Produto não encontrado ou erro ao carregar os dados.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
 else
 {
     <h3>Editar Produto</h3>
 
-    @if (produto == null)
-    {
-        <p>Carregando produto...</p>
-    }
-    else
-    {
-        <EditForm Model="produto" OnValidSubmit="HandleSubmit">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
+    <EditForm Model="produto" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-            <div class="mb-3">
-                <label>Nome:</label>
-                <InputText class="form-control" @bind-Value="produto.Nome" />
-            </div>
-            <div class="mb-3">
-                <label>Marca:</label>
-                <InputText class="form-control" @bind-Value="produto.Marca" />
-            </div>
-            <div class="mb-3">
-                <label>Descrição:</label>
-                <InputText class="form-control" @bind-Value="produto.Descricao" />
-            </div>
+        <div class="mb-3">
+            <label>Nome:</label>
+            <InputText class="form-control" @bind-Value="produto.Nome" />
+        </div>
+        <div class="mb-3">
+            <label>Marca:</label>
+            <InputText class="form-control" @bind-Value="produto.Marca" />
+        </div>
+        <div class="mb-3">
+            <label>Descrição:</label>
+            <InputText class="form-control" @bind-Value="produto.Descricao" />
+        </div>
 
-            <div class="mb-3">
-                <label>Categoria:</label>
+        <div class="mb-3">
+            <label>Categoria:</label>
+            @if (categorias == null || categorias.Count == 0)
+            {
+                <p class="text-danger">Nenhuma categoria disponível. Por favor, crie uma categoria primeiro.</p>
+            }
+            else
+            {
                 <select class="form-select" @bind="produto.CategoriaId">
-                    @if (categorias != null)
+                    @foreach (var cat in categorias)
                     {
-                        @foreach (var cat in categorias)
-                        {
-                            <option value="@cat.CategoriaId">@cat.Nome</option>
-                        }
+                        <option value="@cat.CategoriaId">@cat.Nome</option>
                     }
                 </select>
-            </div>
+            }
+        </div>
 
-            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-            <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
-        </EditForm>
-    }
+        <button type="submit" class="btn btn-primary" disabled="@(categorias == null || categorias.Count == 0)">Salvar Alterações</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
+    </EditForm>
 }
 
 <!-- Popup para mensagens -->
@@ -69,6 +80,8 @@ else
     [Parameter] public int id { get; set; }
     private Produto? produto;
     private List<Categoria>? categorias;
+    private bool isInitialized = false;
+    private bool shouldRedirect = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
@@ -80,70 +93,63 @@ else
             Navigation.NavigateTo("/login");
             return;
         }
+
+        if (id <= 0)
+        {
+            ShowPopup("ID do produto inválido.", MessagePopup.MessageType.Error);
+            isInitialized = true;
+            return;
+        }
+
         if (AuthService.IsAdmin || AuthService.IsManager)
         {
             try
             {
-                // 1. Carrega a lista de categorias
+                // Carrega a lista de categorias
                 var catResponse = await Http.GetAsync("api/Categorias");
                 if (catResponse.IsSuccessStatusCode)
                 {
-                    categorias = await catResponse.Content.ReadFromJsonAsync<List<Categoria>>();
+                    var apiResponse = await catResponse.Content.ReadFromJsonAsync<ApiResponse<List<Categoria>>>();
+                    if (apiResponse?.Success == true)
+                    {
+                        categorias = apiResponse.Data ?? new List<Categoria>();
+                    }
+                    else
+                    {
+                        categorias = new List<Categoria>();
+                        ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
+                    }
                 }
                 else
                 {
                     categorias = new List<Categoria>();
-                    var errorContent = await catResponse.Content.ReadAsStringAsync();
-                    try
-                    {
-                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                        if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                        {
-                            ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                        }
-                        else
-                        {
-                            ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                        }
-                    }
-                    catch
-                    {
-                        ShowPopup($"Erro ao carregar as categorias: {errorContent}", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
 
-                // 2. Carrega o produto
+                // Carrega o produto
                 var prodResponse = await Http.GetAsync($"api/Produtos/{id}");
                 if (prodResponse.IsSuccessStatusCode)
                 {
-                    produto = await prodResponse.Content.ReadFromJsonAsync<Produto>();
-                    if (produto != null && produto.Categoria != null)
+                    var apiResponse = await prodResponse.Content.ReadFromJsonAsync<ApiResponse<Produto>>();
+                    if (apiResponse?.Success == true && apiResponse.Data != null)
                     {
-                        // Ajusta o CategoriaId e zera "Categoria" para não enviar no PUT
-                        produto.CategoriaId = produto.Categoria.CategoriaId;
-                        produto.Categoria = null;
+                        produto = apiResponse.Data;
+                        if (produto.Categoria != null)
+                        {
+                            produto.CategoriaId = produto.Categoria.CategoriaId;
+                            produto.Categoria = null;
+                        }
+                    }
+                    else
+                    {
+                        produto = null;
+                        ShowPopup(apiResponse?.Message ?? "Erro ao carregar o produto.", MessagePopup.MessageType.Error);
                     }
                 }
                 else
                 {
                     produto = null;
-                    var errorContent = await prodResponse.Content.ReadAsStringAsync();
-                    try
-                    {
-                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                        if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                        {
-                            ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                        }
-                        else
-                        {
-                            ShowPopup("Erro ao carregar o produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                        }
-                    }
-                    catch
-                    {
-                        ShowPopup($"Erro ao carregar o produto: {errorContent}", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup("Erro ao carregar o produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
             }
             catch (Exception ex)
@@ -152,6 +158,11 @@ else
                 categorias = new List<Categoria>();
                 ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
             }
+            finally
+            {
+                isInitialized = true;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -159,36 +170,41 @@ else
     {
         if (produto == null) return;
 
+        if (string.IsNullOrWhiteSpace(produto.Nome))
+        {
+            ShowPopup("O nome do produto é obrigatório.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(produto.Marca))
+        {
+            ShowPopup("A marca do produto é obrigatória.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        if (categorias == null || categorias.Count == 0 || produto.CategoriaId <= 0)
+        {
+            ShowPopup("Selecione uma categoria válida.", MessagePopup.MessageType.Error);
+            return;
+        }
+
         try
         {
-            // Garante que não enviamos o objeto "Categoria"
             produto.Categoria = null;
 
+            Console.WriteLine($"[DEBUG] Atualizando produto: ID={produto.ProdutoId}, Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
+
             var response = await Http.PutAsJsonAsync($"api/Produtos/{id}", produto);
-            if (response.IsSuccessStatusCode)
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+
+            if (response.IsSuccessStatusCode && apiResponse?.Success == true)
             {
-                ShowPopup("Produto atualizado com sucesso!", MessagePopup.MessageType.Success);
-                Navigation.NavigateTo("/produtos");
+                shouldRedirect = true;
+                ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao atualizar o produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao atualizar o produto: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup(apiResponse?.Message ?? "Erro ao atualizar o produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -208,14 +224,22 @@ else
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+
+        if (shouldRedirect)
+        {
+            Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Produto atualizado com sucesso!")}");
+            shouldRedirect = false;
+        }
     }
 
     private void Voltar() => Navigation.NavigateTo("/produtos");
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

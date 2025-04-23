@@ -9,9 +9,19 @@
 
 <h3>Detalhes do Produto</h3>
 
-@if (produto == null)
+@if (Id <= 0)
 {
-    <p>Carregando...</p>
+    <p class="text-danger">ID do produto inválido.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+}
+else if (!isInitialized)
+{
+    <p>Carregando dados do produto...</p>
+}
+else if (produto == null)
+{
+    <p class="text-danger">Produto não encontrado ou erro ao carregar os dados.</p>
+    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
 }
 else
 {
@@ -158,11 +168,10 @@ else
 
     private Produto? produto;
     private List<RegistosPreco>? registosPrecos;
-    private double? credibilidade; // Armazena a credibilidade ajustada por antiguidade
-
-    // Propriedade para agrupar e exibir só o mais recente por loja
+    private double? credibilidade;
     private List<RegistosPreco> DistinctByLojaRegistos = new();
     private bool showHistory = false;
+    private bool isInitialized = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
@@ -175,98 +184,86 @@ else
             return;
         }
 
+        if (Id <= 0)
+        {
+            ShowPopup("ID do produto inválido.", MessagePopup.MessageType.Error);
+            isInitialized = true;
+            return;
+        }
+
         try
         {
             // Carregar os detalhes do produto
+            Console.WriteLine($"[DEBUG] Carregando detalhes do produto com ID: {Id}");
             var prodResponse = await Http.GetAsync($"api/Produtos/{Id}");
             if (prodResponse.IsSuccessStatusCode)
             {
-                produto = await prodResponse.Content.ReadFromJsonAsync<Produto>();
+                var apiResponse = await prodResponse.Content.ReadFromJsonAsync<ApiResponse<Produto>>();
+                if (apiResponse?.Success == true)
+                {
+                    produto = apiResponse.Data;
+                }
+                else
+                {
+                    produto = null;
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar os detalhes do produto.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 produto = null;
-                var errorContent = await prodResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar os detalhes do produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar os detalhes do produto: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar os detalhes do produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
             // Carregar a credibilidade ajustada por antiguidade
+            Console.WriteLine($"[DEBUG] Carregando credibilidade ajustada para o produto com ID: {Id}");
             var credibilidadeResponse = await Http.GetAsync($"api/Produtos/{Id}/credibilidade");
             if (credibilidadeResponse.IsSuccessStatusCode)
             {
-                var credibilidadeData = await credibilidadeResponse.Content.ReadFromJsonAsync<CredibilidadeResponse>();
-                credibilidade = credibilidadeData?.Credibilidade;
+                var apiResponse = await credibilidadeResponse.Content.ReadFromJsonAsync<ApiResponse<CredibilidadeResponse>>();
+                if (apiResponse?.Success == true)
+                {
+                    credibilidade = apiResponse.Data?.Credibilidade;
+                }
+                else
+                {
+                    credibilidade = null;
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar a credibilidade.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 credibilidade = null;
-                var errorContent = await credibilidadeResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar a credibilidade. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar a credibilidade: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar a credibilidade. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
             // Carregar os registos de preço deste produto
+            Console.WriteLine($"[DEBUG] Carregando registos de preços para o produto com ID: {Id}");
             var regResponse = await Http.GetAsync($"api/RegistosPrecos/produto/{Id}");
             if (regResponse.IsSuccessStatusCode)
             {
-                registosPrecos = await regResponse.Content.ReadFromJsonAsync<List<RegistosPreco>>() ?? new List<RegistosPreco>();
-                // Monta a lista "DistinctByLojaRegistos" com o mais recente por loja
-                DistinctByLojaRegistos = registosPrecos
-                    .GroupBy(r => r.LojaId)
-                    .Select(g => g.OrderByDescending(x => x.DataRegisto).First())
-                    .OrderByDescending(r => r.DataRegisto)
-                    .ToList();
+                var apiResponse = await regResponse.Content.ReadFromJsonAsync<ApiResponse<List<RegistosPreco>>>();
+                if (apiResponse?.Success == true)
+                {
+                    registosPrecos = apiResponse.Data ?? new List<RegistosPreco>();
+                    DistinctByLojaRegistos = registosPrecos
+                        .GroupBy(r => r.LojaId)
+                        .Select(g => g.OrderByDescending(x => x.DataRegisto).First())
+                        .OrderByDescending(r => r.DataRegisto)
+                        .ToList();
+                }
+                else
+                {
+                    registosPrecos = new List<RegistosPreco>();
+                    DistinctByLojaRegistos = new List<RegistosPreco>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar os registos de preços.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 registosPrecos = new List<RegistosPreco>();
                 DistinctByLojaRegistos = new List<RegistosPreco>();
-                var errorContent = await regResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar os registos de preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar os registos de preços: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar os registos de preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -276,6 +273,11 @@ else
             DistinctByLojaRegistos = new List<RegistosPreco>();
             credibilidade = null;
             ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+        finally
+        {
+            isInitialized = true;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -321,10 +323,12 @@ else
         public double Credibilidade { get; set; }
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

@@ -107,8 +107,8 @@
     {
         if (IsVisible)
         {
-            // Aguarda 3 segundos e então fecha o popup
-            await Task.Delay(3000);
+            // Aguarda 1.5 segundos e então fecha o popup
+            await Task.Delay(1500);
             await OnClose.InvokeAsync();
         }
     }

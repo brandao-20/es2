@@ -49,10 +49,17 @@ namespace WebAPI.Controllers
             var result = await HttpContext.AuthenticateAsync(GoogleDefaults.AuthenticationScheme);
             if (!result.Succeeded)
             {
+                Console.WriteLine("[ERROR] Falha na autenticação com Google.");
                 return Redirect("http://localhost:5116/login?error=GoogleLoginFailed");
             }
 
             var googleId = result.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(googleId))
+            {
+                Console.WriteLine("[ERROR] Google ID não encontrado na resposta da autenticação.");
+                return Redirect("http://localhost:5116/login?error=GoogleIdMissing");
+            }
+
             var givenName = result.Principal.FindFirst("given_name")?.Value;
             var familyName = result.Principal.FindFirst("family_name")?.Value;
             var fullName = (givenName + " " + familyName).Trim();

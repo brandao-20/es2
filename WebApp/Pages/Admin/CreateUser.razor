@@ -1,4 +1,5 @@
 @page "/users/new"
+@using System.Text.RegularExpressions
 @using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
@@ -55,35 +56,83 @@ else
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+    private bool shouldRedirect = false;
 
     private async Task HandleSubmit()
     {
         try
         {
-            var response = await Http.PostAsJsonAsync("api/Utilizadores/admincreate", novoUser);
-            if (response.IsSuccessStatusCode)
+            // Validações iniciais
+            if (string.IsNullOrWhiteSpace(novoUser.Username))
             {
-                // Redireciona com a mensagem de sucesso como parâmetro de consulta
-                Navigation.NavigateTo($"/users?successMessage={Uri.EscapeDataString("Utilizador criado com sucesso!")}");
+                ShowPopup("O nome de utilizador é obrigatório.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(novoUser.Email) || !IsValidEmail(novoUser.Email))
+            {
+                ShowPopup("Email inválido.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(novoUser.Password))
+            {
+                ShowPopup("A senha é obrigatória.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            // Verificar se o username ou email já existe
+            var checkResponse = await Http.GetAsync($"api/Utilizadores/check?username={Uri.EscapeDataString(novoUser.Username)}&email={Uri.EscapeDataString(novoUser.Email)}");
+            if (checkResponse.IsSuccessStatusCode)
+            {
+                var checkResult = await checkResponse.Content.ReadFromJsonAsync<ApiResponse<CheckAvailabilityResponse>>();
+                if (checkResult?.Success == true)
+                {
+                    if (checkResult.Data?.UsernameExists == true)
+                    {
+                        ShowPopup("O nome de utilizador já está em uso.", MessagePopup.MessageType.Error);
+                        return;
+                    }
+                    if (checkResult.Data?.EmailExists == true)
+                    {
+                        ShowPopup("O email já está em uso.", MessagePopup.MessageType.Error);
+                        return;
+                    }
+                }
+                else
+                {
+                    ShowPopup(checkResult?.Message ?? "Erro ao verificar disponibilidade.", MessagePopup.MessageType.Error);
+                    return;
+                }
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
+                ShowPopup("Erro ao verificar disponibilidade de username/email.", MessagePopup.MessageType.Error);
+                return;
+            }
+
+            // Enviar requisição de criação
+            var response = await Http.PostAsJsonAsync("api/Utilizadores/admincreate", novoUser);
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<Utilizador>>();
+
+            if (response.IsSuccessStatusCode && apiResponse?.Success == true)
+            {
+                shouldRedirect = true;
+                ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+            }
+            else
+            {
+                if (apiResponse?.ErrorCode == "DUPLICATE_USERNAME")
                 {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao criar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup("O nome de utilizador já está em uso.", MessagePopup.MessageType.Error);
                 }
-                catch
+                else if (apiResponse?.ErrorCode == "DUPLICATE_EMAIL")
                 {
-                    ShowPopup($"Erro ao criar o utilizador: {errorContent}", MessagePopup.MessageType.Error);
+                    ShowPopup("O email já está em uso.", MessagePopup.MessageType.Error);
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? "Erro ao criar o utilizador. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
             }
         }
@@ -91,6 +140,12 @@ else
         {
             ShowPopup($"Erro inesperado ao criar o utilizador: {ex.Message}", MessagePopup.MessageType.Error);
         }
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        var emailRegex = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+        return Regex.IsMatch(email, emailRegex);
     }
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
@@ -104,6 +159,12 @@ else
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+
+        if (shouldRedirect)
+        {
+            Navigation.NavigateTo($"/users?successMessage={Uri.EscapeDataString("Utilizador criado com sucesso!")}");
+            shouldRedirect = false;
+        }
     }
 
     private void Voltar() => Navigation.NavigateTo("/users");
@@ -116,10 +177,28 @@ else
         public string Tipo { get; set; } = "User"; // Admin, UserManager, User
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
+    }
+
+    private class CheckAvailabilityResponse
+    {
+        public bool UsernameExists { get; set; }
+        public bool EmailExists { get; set; }
+    }
+
+    private class Utilizador
+    {
+        public int UtilizadorId { get; set; }
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public int TipoUtilizadorId { get; set; }
+        public DateTime DataCriacao { get; set; }
     }
 }

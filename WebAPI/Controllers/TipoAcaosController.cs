@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using WebAPI.Entities;
+using WebAPI.Entities;
 using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
@@ -16,50 +17,222 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TipoAcao>>> GetAll()
+        public async Task<ActionResult<ApiResponse<IEnumerable<TipoAcao>>>> GetAll()
         {
-            return Ok(await _tipoAcaoRepository.GetAllAsync());
+            try
+            {
+                var tipoAcaos = await _tipoAcaoRepository.GetAllAsync();
+                return Ok(new ApiResponse<IEnumerable<TipoAcao>>
+                {
+                    Success = true,
+                    Message = "Tipos de ação carregados com sucesso.",
+                    StatusCode = 200,
+                    Data = tipoAcaos
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<IEnumerable<TipoAcao>>
+                {
+                    Success = false,
+                    Message = $"Erro ao carregar os tipos de ação: {ex.Message}",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<TipoAcao>> GetById(int id)
+        public async Task<ActionResult<ApiResponse<TipoAcao>>> GetById(int id)
         {
-            var tipo = await _tipoAcaoRepository.GetByIdAsync(id);
-            if (tipo == null) return NotFound();
-            return tipo;
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest(new ApiResponse<TipoAcao>
+                    {
+                        Success = false,
+                        Message = "ID do tipo de ação inválido.",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                var tipoAcao = await _tipoAcaoRepository.GetByIdAsync(id);
+                if (tipoAcao == null)
+                {
+                    return NotFound(new ApiResponse<TipoAcao>
+                    {
+                        Success = false,
+                        Message = "Tipo de ação não encontrado.",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                return Ok(new ApiResponse<TipoAcao>
+                {
+                    Success = true,
+                    Message = "Tipo de ação encontrado com sucesso.",
+                    StatusCode = 200,
+                    Data = tipoAcao
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<TipoAcao>
+                {
+                    Success = false,
+                    Message = $"Erro ao buscar o tipo de ação: {ex.Message}",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
 
         [HttpPost]
-        public async Task<ActionResult<TipoAcao>> Create(TipoAcao tipo)
+        public async Task<ActionResult<ApiResponse<TipoAcao>>> Create(TipoAcao tipoAcao)
         {
-            await _tipoAcaoRepository.AddAsync(tipo);
-            return CreatedAtAction(nameof(GetById), new { id = tipo.TipoAcaoId }, tipo);
+            try
+            {
+                if (tipoAcao == null || string.IsNullOrEmpty(tipoAcao.Tipo))
+                {
+                    return BadRequest(new ApiResponse<TipoAcao>
+                    {
+                        Success = false,
+                        Message = "Dados do tipo de ação inválidos.",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                await _tipoAcaoRepository.AddAsync(tipoAcao);
+                return CreatedAtAction(nameof(GetById), new { id = tipoAcao.TipoAcaoId }, new ApiResponse<TipoAcao>
+                {
+                    Success = true,
+                    Message = "Tipo de ação criado com sucesso.",
+                    StatusCode = 201,
+                    Data = tipoAcao
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<TipoAcao>
+                {
+                    Success = false,
+                    Message = $"Erro ao criar o tipo de ação: {ex.Message}",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, TipoAcao tipo)
+        public async Task<ActionResult<ApiResponse<object>>> Update(int id, TipoAcao tipoAcao)
         {
-            if (id != tipo.TipoAcaoId) return BadRequest();
-
             try
             {
-                await _tipoAcaoRepository.UpdateAsync(tipo);
+                if (id <= 0 || id != tipoAcao.TipoAcaoId)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do tipo de ação inválido ou não corresponde ao objeto fornecido.",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                var existingTipoAcao = await _tipoAcaoRepository.GetByIdAsync(id);
+                if (existingTipoAcao == null)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Tipo de ação não encontrado.",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                await _tipoAcaoRepository.UpdateAsync(tipoAcao);
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Tipo de ação atualizado com sucesso.",
+                    StatusCode = 200,
+                    Data = null
+                });
             }
             catch (KeyNotFoundException)
             {
-                return NotFound();
+                return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Tipo de ação não encontrado.",
+                    StatusCode = 404,
+                    Data = null
+                });
             }
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Erro ao atualizar o tipo de ação: {ex.Message}",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
         {
-            var tipo = await _tipoAcaoRepository.GetByIdAsync(id);
-            if (tipo == null) return NotFound();
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do tipo de ação inválido.",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
 
-            await _tipoAcaoRepository.DeleteAsync(tipo);
-            return NoContent();
+                var tipoAcao = await _tipoAcaoRepository.GetByIdAsync(id);
+                if (tipoAcao == null)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Tipo de ação não encontrado.",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                await _tipoAcaoRepository.DeleteAsync(tipoAcao);
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Tipo de ação excluído com sucesso.",
+                    StatusCode = 200,
+                    Data = null
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Erro ao excluir o tipo de ação: {ex.Message}",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
     }
 }

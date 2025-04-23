@@ -1,65 +1,109 @@
-@page "/updateprice/{RegistoPrecoId:int}"
+@page "/updateprice/{Id:int}"
 @using WebApp.Models
 @using WebApp.Components
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
 
-<PageTitle>Atualizar Preço</PageTitle>
-<h3>Atualizar Preço do Produto</h3>
+<PageTitle>Atualizar Registo de Preço</PageTitle>
+<h3>Atualizar Registo de Preço</h3>
 
 @if (!AuthService.IsLoggedIn)
 {
-    <p>Você precisa estar logado para atualizar preços.</p>
-    <button class="btn btn-secondary" @onclick="Voltar">← Voltar</button>
+    <p>Você precisa estar logado para atualizar um registo de preço.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else if (Id <= 0)
+{
+    <p class="text-danger">ID do registo inválido.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else if (!isInitialized)
+{
+    <p>Carregando dados...</p>
+}
+else if (record == null)
+{
+    <p class="text-danger">Registo de preço não encontrado ou erro ao carregar os dados.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
 }
 else
 {
-    @if (priceUpdate == null)
-    {
-        <p>Carregando...</p>
-    }
-    else
-    {
-        <EditForm Model="@priceUpdate" OnValidSubmit="HandleUpdate">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-            <div class="mb-3">
-                <label>Produto:</label>
-                <InputSelect class="form-control" @bind-Value="priceUpdate.ProdutoId" disabled>
-                    @if (produtos != null)
+    <EditForm Model="record" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <!-- Seleção de Produto -->
+        <div class="mb-3">
+            <label>Produto:</label>
+            @if (produtos == null || produtos.Count == 0)
+            {
+                <p class="text-danger">Nenhum produto disponível.</p>
+            }
+            else
+            {
+                <select class="form-select" @bind="record.ProdutoId" disabled>
+                    @foreach (var p in produtos)
                     {
-                        @foreach (var p in produtos)
-                        {
-                            <option value="@p.ProdutoId">@p.Nome</option>
-                        }
+                        <option value="@p.ProdutoId">@p.Nome</option>
                     }
-                </InputSelect>
-            </div>
-            <div class="mb-3">
-                <label>Loja:</label>
-                <InputSelect class="form-control" @bind-Value="priceUpdate.LojaId" disabled>
-                    @if (lojas != null)
+                </select>
+            }
+        </div>
+
+        <!-- Seleção de Loja -->
+        <div class="mb-3">
+            <label>Loja:</label>
+            @if (lojas == null || lojas.Count == 0)
+            {
+                <p class="text-danger">Nenhuma loja disponível.</p>
+            }
+            else
+            {
+                <select class="form-select" @bind="record.LojaId" disabled>
+                    @foreach (var l in lojas)
                     {
-                        @foreach (var l in lojas)
-                        {
-                            <option value="@l.LojaId">@l.Nome</option>
-                        }
+                        <option value="@l.LojaId">@l.Nome</option>
                     }
-                </InputSelect>
-            </div>
-            <div class="mb-3">
-                <label>Novo Preço:</label>
-                <InputNumber class="form-control" @bind-Value="priceUpdate.Preco" />
-            </div>
-            <div class="mb-3">
-                <label>Data:</label>
-                <InputDate class="form-control" @bind-Value="priceUpdate.DataRegisto" />
-            </div>
-            <button type="submit" class="btn btn-primary">Atualizar Preço</button>
-            <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
-        </EditForm>
-    }
+                </select>
+            }
+        </div>
+
+        <!-- Seleção do Tipo de Ação -->
+        <div class="mb-3">
+            <label>Tipo de Ação:</label>
+            @if (tipoAcoes == null || tipoAcoes.Count == 0)
+            {
+                <p class="text-danger">Nenhum tipo de ação disponível.</p>
+            }
+            else
+            {
+                <select class="form-select" @bind="record.TipoAcaoId">
+                    @foreach (var acao in tipoAcoes)
+                    {
+                        <option value="@acao.TipoAcaoId">@acao.Tipo</option>
+                    }
+                </select>
+            }
+        </div>
+
+        <!-- Campo de Preço -->
+        <div class="mb-3">
+            <label>Preço:</label>
+            <InputNumber class="form-control" @bind-Value="record.Preco" />
+            <ValidationMessage For="@(() => record.Preco)" />
+        </div>
+
+        <!-- Campo de Data com validação (não permite data futura) -->
+        <div class="mb-3">
+            <label>Data:</label>
+            <InputDate class="form-control" @bind-Value="record.DataRegisto" max="@DateTime.Now.ToString("yyyy-MM-dd")" />
+            <ValidationMessage For="@(() => record.DataRegisto)" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@(!CanSubmit)">Atualizar Registo</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Voltar</button>
+    </EditForm>
 }
 
 <!-- Popup para mensagens -->
@@ -70,168 +114,202 @@ else
     OnClose="ClosePopup" />
 
 @code {
-    [Parameter]
-    public int RegistoPrecoId { get; set; }
-
-    private RegistosPreco? priceUpdate;
+    [Parameter] public int Id { get; set; }
+    private RegistosPreco? record;
     private List<Produto>? produtos;
     private List<Loja>? lojas;
+    private List<TipoAcao>? tipoAcoes;
+    private bool isInitialized = false;
+    private bool shouldRedirect = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.ValidateToken())
+        if (!AuthService.ValidateToken() || !AuthService.IsLoggedIn)
         {
             Navigation.NavigateTo("/login");
             return;
         }
-        if (!AuthService.IsLoggedIn)
+
+        if (Id <= 0)
         {
-            Navigation.NavigateTo("/login");
+            ShowPopup("ID do registo inválido.", MessagePopup.MessageType.Error);
+            isInitialized = true;
             return;
         }
 
         try
         {
-            // Carregar o registo de preço existente
-            var priceResponse = await Http.GetAsync($"api/RegistosPrecos/{RegistoPrecoId}");
-            if (priceResponse.IsSuccessStatusCode)
+            // Carrega o registo de preço
+            Console.WriteLine($"[DEBUG] Carregando registo de preço com ID: {Id}");
+            var regResponse = await Http.GetAsync($"api/RegistosPrecos/{Id}");
+            if (regResponse.IsSuccessStatusCode)
             {
-                priceUpdate = await priceResponse.Content.ReadFromJsonAsync<RegistosPreco>();
-                if (priceUpdate == null)
+                var apiResponse = await regResponse.Content.ReadFromJsonAsync<ApiResponse<RegistosPreco>>();
+                if (apiResponse?.Success == true)
                 {
-                    ShowPopup("Registo de preço não encontrado.", MessagePopup.MessageType.Error);
-                    return;
+                    record = apiResponse.Data;
+                }
+                else
+                {
+                    record = null;
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar o registo de preço.", MessagePopup.MessageType.Error);
                 }
             }
             else
             {
-                priceUpdate = null;
-                var errorContent = await priceResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar o registo de preço. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar o registo de preço: {errorContent}", MessagePopup.MessageType.Error);
-                }
-                return;
+                record = null;
+                ShowPopup("Erro ao carregar o registo de preço. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
-            // Carregar produtos
+            // Carrega a lista de produtos
+            Console.WriteLine("[DEBUG] Carregando produtos...");
             var prodResponse = await Http.GetAsync("api/Produtos");
             if (prodResponse.IsSuccessStatusCode)
             {
-                produtos = await prodResponse.Content.ReadFromJsonAsync<List<Produto>>();
+                var apiResponse = await prodResponse.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
+                if (apiResponse?.Success == true)
+                {
+                    produtos = apiResponse.Data ?? new List<Produto>();
+                    Console.WriteLine($"[DEBUG] Produtos carregados: {produtos.Count}");
+                }
+                else
+                {
+                    produtos = new List<Produto>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar os produtos.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 produtos = new List<Produto>();
-                var errorContent = await prodResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar os produtos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar os produtos: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar os produtos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
-            // Carregar lojas
+            // Carrega a lista de lojas
+            Console.WriteLine("[DEBUG] Carregando lojas...");
             var lojaResponse = await Http.GetAsync("api/Lojas");
             if (lojaResponse.IsSuccessStatusCode)
             {
-                lojas = await lojaResponse.Content.ReadFromJsonAsync<List<Loja>>();
+                var apiResponse = await lojaResponse.Content.ReadFromJsonAsync<ApiResponse<List<Loja>>>();
+                if (apiResponse?.Success == true)
+                {
+                    lojas = apiResponse.Data ?? new List<Loja>();
+                    Console.WriteLine($"[DEBUG] Lojas carregadas: {lojas.Count}");
+                }
+                else
+                {
+                    lojas = new List<Loja>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar as lojas.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
                 lojas = new List<Loja>();
-                var errorContent = await lojaResponse.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar as lojas. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar as lojas: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao carregar as lojas. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
-        }
-        catch (Exception ex)
-        {
-            priceUpdate = null;
-            produtos = new List<Produto>();
-            lojas = new List<Loja>();
-            ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
-        }
-    }
 
-    private async Task HandleUpdate()
-    {
-        if (priceUpdate == null) return;
-
-        try
-        {
-            var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{priceUpdate.RegistoPrecoId}", priceUpdate);
-            if (response.IsSuccessStatusCode)
+            // Carrega a lista de tipos de ação
+            Console.WriteLine("[DEBUG] Carregando tipos de ação...");
+            var acaoResponse = await Http.GetAsync("api/TipoAcaos");
+            if (acaoResponse.IsSuccessStatusCode)
             {
-                ShowPopup("Preço atualizado com sucesso!", MessagePopup.MessageType.Success);
-                Navigation.NavigateTo($"/productdetails/{priceUpdate.ProdutoId}");
+                var apiResponse = await acaoResponse.Content.ReadFromJsonAsync<ApiResponse<List<TipoAcao>>>();
+                if (apiResponse?.Success == true)
+                {
+                    tipoAcoes = apiResponse.Data ?? new List<TipoAcao>();
+                    Console.WriteLine($"[DEBUG] Tipos de ação carregados: {tipoAcoes.Count}");
+                }
+                else
+                {
+                    tipoAcoes = new List<TipoAcao>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar os tipos de ação.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao atualizar o preço. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao atualizar o preço: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                tipoAcoes = new List<TipoAcao>();
+                ShowPopup("Erro ao carregar os tipos de ação. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
         {
-            ShowPopup($"Erro inesperado ao atualizar o preço: {ex.Message}", MessagePopup.MessageType.Error);
+            record = null;
+            produtos = new List<Produto>();
+            lojas = new List<Loja>();
+            tipoAcoes = new List<TipoAcao>();
+            ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+        finally
+        {
+            isInitialized = true;
+            await InvokeAsync(StateHasChanged);
         }
     }
+
+    private async Task HandleSubmit()
+    {
+        if (record == null) return;
+
+        if (record.ProdutoId <= 0)
+        {
+            ShowPopup("Selecione um produto válido.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        if (record.LojaId <= 0)
+        {
+            ShowPopup("Selecione uma loja válida.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        if (record.TipoAcaoId <= 0)
+        {
+            ShowPopup("Selecione um tipo de ação válido.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        if (record.Preco <= 0)
+        {
+            ShowPopup("O preço deve ser maior que zero.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        record.Produto = null;
+        record.Loja = null;
+        record.TipoAcao = null;
+
+        try
+        {
+            Console.WriteLine($"[DEBUG] Atualizando registo de preço: ID={record.RegistoPrecoId}, Preço={record.Preco}");
+            var response = await Http.PutAsJsonAsync($"api/RegistosPrecos/{Id}", record);
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+            if (response.IsSuccessStatusCode && apiResponse?.Success == true)
+            {
+                shouldRedirect = true;
+                ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+            }
+            else
+            {
+                ShowPopup(apiResponse?.Message ?? "Erro ao atualizar o registo de preço.", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro inesperado ao atualizar o registo de preço: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+    }
+
+    private bool CanSubmit =>
+        produtos != null && produtos.Count > 0 &&
+        lojas != null && lojas.Count > 0 &&
+        tipoAcoes != null && tipoAcoes.Count > 0 &&
+        record != null &&
+        record.ProdutoId > 0 &&
+        record.LojaId > 0 &&
+        record.TipoAcaoId > 0 &&
+        record.Preco > 0;
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
     {
@@ -244,17 +322,22 @@ else
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+
+        if (shouldRedirect)
+        {
+            Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Registo de preço atualizado com sucesso!")}");
+            shouldRedirect = false;
+        }
     }
 
-    private void Voltar()
-    {
-        Navigation.NavigateTo($"/productdetails/{priceUpdate?.ProdutoId ?? 0}");
-    }
+    private void GoBack() => Navigation.NavigateTo("/produtos");
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

@@ -209,23 +209,8 @@ else
             else
             {
                 utilizadores = new List<Utilizador>();
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar os utilizadores. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar os utilizadores: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                ShowPopup(apiResponse?.Message ?? "Erro ao carregar os utilizadores. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -281,30 +266,16 @@ else
         try
         {
             var response = await Http.DeleteAsync($"api/Utilizadores/{userIdToDelete}");
-            if (response.IsSuccessStatusCode)
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+
+            if (response.IsSuccessStatusCode && apiResponse?.Success == true)
             {
-                ShowPopup($"Utilizador '{userNameToDelete}' removido com sucesso!", MessagePopup.MessageType.Success);
+                ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
                 await CarregarUtilizadores();
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup($"Erro ao remover o utilizador '{userNameToDelete}'. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao remover o utilizador: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup(apiResponse?.Message ?? $"Erro ao remover o utilizador '{userNameToDelete}'. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -328,10 +299,28 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-    private class ErrorResponse
+    private class Utilizador
     {
+        public int UtilizadorId { get; set; }
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public int TipoUtilizadorId { get; set; }
+        public TipoUtilizador? TipoUtilizador { get; set; }
+        public DateTime DataCriacao { get; set; }
+    }
+
+    private class TipoUtilizador
+    {
+        public int TipoUtilizadorId { get; set; }
+        public string Tipo { get; set; } = "";
+    }
+
+    private class ApiResponse<T>
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

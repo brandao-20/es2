@@ -2,101 +2,127 @@
 @using WebApp.Models
 @using WebApp.Components
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <h3>Pesquisar Produtos</h3>
 
-<button class="btn btn-primary mb-3" @onclick="ToggleFilters">
-    Filtros
-</button>
-
-@if (showFilters)
+@if (!isInitialized)
 {
-    <div class="advanced-filters card p-3 mb-3">
-        <div class="form-check">
-            <InputCheckbox @bind-Value="useName" class="form-check-input" id="chkName" />
-            <label class="form-check-label" for="chkName">Nome</label>
-        </div>
-        <div class="form-check">
-            <InputCheckbox @bind-Value="useCategory" class="form-check-input" id="chkCategory" />
-            <label class="form-check-label" for="chkCategory">Categoria</label>
-        </div>
-        <div class="form-check">
-            <InputCheckbox @bind-Value="useStore" class="form-check-input" id="chkStore" />
-            <label class="form-check-label" for="chkStore">Loja</label>
-        </div>
-        <div class="form-check">
-            <InputCheckbox @bind-Value="useDate" class="form-check-input" id="chkDate" />
-            <label class="form-check-label" for="chkDate">Data (a partir de)</label>
-        </div>
-    </div>
-}
-
-@if (useName)
-{
-    <div class="mb-3">
-        <label>Nome:</label>
-        <InputText class="form-control" @bind-Value="searchCriteria.Name" @oninput="OnNameInput" />
-    </div>
-}
-@if (useCategory)
-{
-    <div class="mb-3">
-        <label>ID da Categoria:</label>
-        <InputNumber class="form-control" @bind-Value="searchCriteria.CategoryId" />
-    </div>
-}
-@if (useStore)
-{
-    <div class="mb-3">
-        <label>Nome da Loja:</label>
-        <InputText class="form-control" @bind-Value="searchCriteria.Store" @oninput="OnStoreInput" />
-    </div>
-}
-@if (useDate)
-{
-    <div class="mb-3">
-        <label>Data (a partir de):</label>
-        <InputDate class="form-control" @bind-Value="searchCriteria.DateFrom" />
-    </div>
-}
-
-<button class="btn btn-secondary" @onclick="HandleSearch">Pesquisar</button>
-
-@if (products == null)
-{
-    <p>Realize a pesquisa.</p>
-}
-else if (!products.Any())
-{
-    <p>Nenhum produto encontrado.</p>
+    <p>Carregando opções de pesquisa...</p>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nome</th>
-                <th>Marca</th>
-                <th>Categoria</th>
-                <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var prod in products)
+    <button class="btn btn-primary mb-3" @onclick="ToggleFilters">
+        @(showFilters ? "Ocultar Filtros" : "Mostrar Filtros")
+    </button>
+
+    @if (showFilters)
+    {
+        <div class="advanced-filters card p-3 mb-3">
+            <div class="form-check">
+                <InputCheckbox @bind-Value="useName" class="form-check-input" id="chkName" />
+                <label class="form-check-label" for="chkName">Nome</label>
+            </div>
+            <div class="form-check">
+                <InputCheckbox @bind-Value="useCategory" class="form-check-input" id="chkCategory" />
+                <label class="form-check-label" for="chkCategory">Categoria</label>
+            </div>
+            <div class="form-check">
+                <InputCheckbox @bind-Value="useStore" class="form-check-input" id="chkStore" />
+                <label class="form-check-label" for="chkStore">Loja</label>
+            </div>
+            <div class="form-check">
+                <InputCheckbox @bind-Value="useDate" class="form-check-input" id="chkDate" />
+                <label class="form-check-label" for="chkDate">Data (a partir de)</label>
+            </div>
+        </div>
+    }
+
+    @if (useName)
+    {
+        <div class="mb-3">
+            <label>Nome:</label>
+            <InputText class="form-control" @bind-Value="searchCriteria.Name" @oninput="OnNameInput" />
+        </div>
+    }
+    @if (useCategory)
+    {
+        <div class="mb-3">
+            <label>Categoria:</label>
+            @if (categorias == null || categorias.Count == 0)
             {
-                <tr>
-                    <td>@prod.ProdutoId</td>
-                    <td>@prod.Nome</td>
-                    <td>@prod.Marca</td>
-                    <td>@prod.Categoria?.Nome</td>
-                    <td>
-                        <a href="/productdetails/@prod.ProdutoId" class="btn btn-info btn-sm">Ver Detalhes</a>
-                    </td>
-                </tr>
+                <p class="text-danger">Nenhuma categoria disponível.</p>
             }
-        </tbody>
-    </table>
+            else
+            {
+                <select class="form-select" @bind="searchCriteria.CategoryId">
+                    <option value="">Selecione uma categoria</option>
+                    @foreach (var cat in categorias)
+                    {
+                        <option value="@cat.CategoriaId">@cat.Nome</option>
+                    }
+                </select>
+            }
+        </div>
+    }
+    @if (useStore)
+    {
+        <div class="mb-3">
+            <label>Nome da Loja:</label>
+            <InputText class="form-control" @bind-Value="searchCriteria.Store" @oninput="OnStoreInput" />
+        </div>
+    }
+    @if (useDate)
+    {
+        <div class="mb-3">
+            <label>Data (a partir de):</label>
+            <InputDate class="form-control" @bind-Value="searchCriteria.DateFrom" />
+        </div>
+    }
+
+    <button class="btn btn-secondary" @onclick="HandleSearch" disabled="@(!CanSearch)">Pesquisar</button>
+
+    @if (isSearching)
+    {
+        <p>Pesquisando...</p>
+    }
+    else if (products == null)
+    {
+        <p>Realize a pesquisa para ver os resultados.</p>
+    }
+    else if (!products.Any())
+    {
+        <p>Nenhum produto encontrado.</p>
+    }
+    else
+    {
+        <table class="table mt-3">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Marca</th>
+                    <th>Categoria</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var prod in products)
+                {
+                    <tr>
+                        <td>@prod.ProdutoId</td>
+                        <td>@prod.Nome</td>
+                        <td>@prod.Marca</td>
+                        <td>@prod.Categoria?.Nome</td>
+                        <td>
+                            <a href="/productdetails/@prod.ProdutoId" class="btn btn-info btn-sm">Ver Detalhes</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 }
 
 <!-- Popup para mensagens -->
@@ -112,16 +138,60 @@ else
     private bool useCategory;
     private bool useStore;
     private bool useDate;
-    private List<Produto> products = new();
+    private List<Produto> products;
+    private List<Categoria>? categorias;
     private SearchCriteria searchCriteria = new SearchCriteria();
+    private bool isInitialized = false;
+    private bool isSearching = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        searchCriteria = new SearchCriteria();
-        Console.WriteLine("[DEBUG] Componente inicializado - searchCriteria criado.");
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        products = new List<Produto>();
+
+        try
+        {
+            // Carregar categorias para o filtro
+            Console.WriteLine("[DEBUG] Carregando categorias para o filtro de pesquisa...");
+            var response = await Http.GetAsync("api/Categorias");
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Categoria>>>();
+                if (apiResponse?.Success == true)
+                {
+                    categorias = apiResponse.Data ?? new List<Categoria>();
+                    Console.WriteLine($"[DEBUG] Categorias carregadas: {categorias.Count}");
+                }
+                else
+                {
+                    categorias = new List<Categoria>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
+                }
+            }
+            else
+            {
+                categorias = new List<Categoria>();
+                ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            categorias = new List<Categoria>();
+            ShowPopup($"Erro inesperado ao carregar as categorias: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+        finally
+        {
+            isInitialized = true;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void ToggleFilters()
@@ -146,15 +216,22 @@ else
 
     private async Task HandleSearch()
     {
+        // Validação: pelo menos um critério deve estar preenchido
+        if (!CanSearch)
+        {
+            ShowPopup("Selecione e preencha pelo menos um critério de pesquisa.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        isSearching = true;
+        await InvokeAsync(StateHasChanged);
+
         try
         {
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine($"[DEBUG] Após StateHasChanged - useName: {useName}, searchCriteria.Name: '{searchCriteria.Name}'");
-
             var query = new List<string>();
             if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
                 query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
-            if (useCategory && searchCriteria.CategoryId.HasValue)
+            if (useCategory && searchCriteria.CategoryId.HasValue && searchCriteria.CategoryId != 0)
                 query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
             if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
                 query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
@@ -170,32 +247,26 @@ else
 
             if (response.IsSuccessStatusCode)
             {
-                products = await response.Content.ReadFromJsonAsync<List<Produto>>() ?? new List<Produto>();
-                Console.WriteLine($"[DEBUG] Produtos desserializados: {products.Count}");
-                if (!products.Any())
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
+                if (apiResponse?.Success == true)
                 {
-                    ShowPopup("Nenhum produto encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                    products = apiResponse.Data ?? new List<Produto>();
+                    Console.WriteLine($"[DEBUG] Produtos desserializados: {products.Count}");
+                    if (!products.Any())
+                    {
+                        ShowPopup("Nenhum produto encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                    }
+                }
+                else
+                {
+                    products = new List<Produto>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao realizar a pesquisa.", MessagePopup.MessageType.Error);
                 }
             }
             else
             {
                 products = new List<Produto>();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(responseContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao realizar a pesquisa. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao realizar a pesquisa: {responseContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup("Erro ao realizar a pesquisa. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -203,7 +274,18 @@ else
             products = new List<Produto>();
             ShowPopup($"Erro inesperado ao realizar a pesquisa: {ex.Message}", MessagePopup.MessageType.Error);
         }
+        finally
+        {
+            isSearching = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
+
+    private bool CanSearch =>
+        (useName && !string.IsNullOrEmpty(searchCriteria.Name)) ||
+        (useCategory && searchCriteria.CategoryId.HasValue && searchCriteria.CategoryId != 0) ||
+        (useStore && !string.IsNullOrEmpty(searchCriteria.Store)) ||
+        (useDate && searchCriteria.DateFrom.HasValue);
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
     {
@@ -224,13 +306,14 @@ else
         public int? CategoryId { get; set; }
         public string Store { get; set; } = "";
         public DateTime? DateFrom { get; set; }
-        // Comentário movido: "serviço de autenticação não inicializado" (parece não estar relacionado com esta classe)
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }

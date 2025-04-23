@@ -5,32 +5,41 @@
 @inject WebApp.Services.AuthService AuthService
 
 <h3>Perfil do Utilizador</h3>
-<p><strong>Nome de Utilizador:</strong> @AuthService.UserName</p>
-<p><strong>Papel (Role):</strong> @AuthService.Role</p>
-<!-- Se desejar, poderíamos buscar mais dados do servidor, como Email, Telefone, etc. -->
 
-<button class="btn btn-warning" @onclick="AskDelete">Eliminar Conta</button>
-
-<!-- Popup para mensagens -->
-<MessagePopup
-    IsVisible="@showPopup"
-    Message="@popupMessage"
-    Type="@popupType"
-    OnClose="ClosePopup" />
-
-<!-- Popup de Confirmação para Exclusão -->
-@if (showConfirm)
+@if (!AuthService.IsLoggedIn)
 {
-    <div class="confirm-overlay">
-        <div class="confirm-content">
-            <h5 style="color: #d32f2f;">Confirmação</h5>
-            <p style="color: #333;">Tem certeza de que deseja eliminar a sua conta? Esta ação é irreversível.</p>
-            <div class="confirm-buttons">
-                <button class="btn btn-danger" @onclick="DeleteAccount">Sim, eliminar</button>
-                <button class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+    <p>Você precisa estar logado para visualizar esta página.</p>
+    <button class="btn btn-primary" @onclick="NavigateToLogin">Ir para Login</button>
+}
+else
+{
+    <p><strong>Nome de Utilizador:</strong> @AuthService.UserName</p>
+    <p><strong>Papel (Role):</strong> @AuthService.Role</p>
+    <!-- Se desejar, poderíamos buscar mais dados do servidor, como Email, Telefone, etc. -->
+
+    <button class="btn btn-warning" @onclick="AskDelete">Eliminar Conta</button>
+
+    <!-- Popup para mensagens -->
+    <MessagePopup
+        IsVisible="@showPopup"
+        Message="@popupMessage"
+        Type="@popupType"
+        OnClose="ClosePopup" />
+
+    <!-- Popup de Confirmação para Exclusão -->
+    @if (showConfirm)
+    {
+        <div class="confirm-overlay">
+            <div class="confirm-content">
+                <h5 style="color: #d32f2f;">Confirmação</h5>
+                <p style="color: #333;">Tem certeza de que deseja eliminar a sua conta? Esta ação é irreversível.</p>
+                <div class="confirm-buttons">
+                    <button class="btn btn-danger" @onclick="DeleteAccount">Sim, eliminar</button>
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+                </div>
             </div>
         </div>
-    </div>
+    }
 }
 
 <style>
@@ -85,6 +94,19 @@
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
+    protected override void OnInitialized()
+    {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private void NavigateToLogin()
+    {
+        Navigation.NavigateTo("/login");
+    }
+
     private void AskDelete() => showConfirm = true;
     private void CancelDelete() => showConfirm = false;
 
@@ -95,31 +117,24 @@
             var response = await Http.DeleteAsync("api/Utilizadores/me");
             if (response.IsSuccessStatusCode)
             {
-                ShowPopup("Conta removida com sucesso!", MessagePopup.MessageType.Success);
-                // Limpa dados de autenticação local
-                AuthService.Clear();
-                // Redireciona para home (ou login)
-                Navigation.NavigateTo("/");
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                if (apiResponse?.Success == true)
+                {
+                    ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+                    // Limpa dados de autenticação local
+                    AuthService.Clear();
+                    // Redireciona para home (ou login)
+                    Navigation.NavigateTo("/");
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? "Erro ao remover a conta.", MessagePopup.MessageType.Error);
+                }
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao remover a conta. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao remover a conta: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                ShowPopup(apiResponse?.Message ?? "Erro ao remover a conta. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
@@ -143,10 +158,12 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private class ErrorResponse
+    private class ApiResponse<T>
     {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
-        public string Message { get; set; } = "";
-        public string Detail { get; set; } = "";
+        public T? Data { get; set; }
     }
 }
