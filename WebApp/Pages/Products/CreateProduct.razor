@@ -1,4 +1,4 @@
-﻿@page "/produtos/novo"
+﻿@page "/products/new"
 @using WebApp.Models
 @using WebApp.Components
 @inject HttpClient Http
@@ -180,12 +180,12 @@ else
 
         if (shouldRedirect)
         {
-            Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Produto criado com sucesso!")}");
+            Navigation.NavigateTo($"/products?successMessage={Uri.EscapeDataString("Produto criado com sucesso!")}");
             shouldRedirect = false;
         }
     }
 
-    private void Voltar() => Navigation.NavigateTo("/produtos");
+    private void Voltar() => Navigation.NavigateTo("/products");
 
     private class ApiResponse<T>
     {

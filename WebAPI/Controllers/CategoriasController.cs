@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using WebAPI.Entities;
-using WebAPI.Entities;
 using WebAPI.Repositories;
 
 namespace WebAPI.Controllers

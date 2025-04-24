@@ -1,4 +1,4 @@
-﻿@page "/produtos"
+﻿@page "/products"
 @using WebApp.Models
 @using WebApp.Components
 @inject HttpClient Http
@@ -239,7 +239,7 @@ else
 
     private void IrParaCriarProduto()
     {
-        Navigation.NavigateTo("/produtos/novo");
+        Navigation.NavigateTo("/products/new");
     }
 
     private void Editar(int id)
@@ -249,7 +249,7 @@ else
             ShowPopup("ID do produto inválido.", MessagePopup.MessageType.Error);
             return;
         }
-        Navigation.NavigateTo($"/produtos/editar/{id}");
+        Navigation.NavigateTo($"/products/edit/{id}");
     }
 
     private void ConfirmarExclusao(int id, string nome)

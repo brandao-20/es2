@@ -33,9 +33,9 @@
                            class="form-control" 
                            @bind="_message" 
                            @bind:event="oninput"
-                           @onkeyup="@(e => { if (e.Key == "Enter") { SendMessage(); } })"
+                           @onkeyup="@(e => { if (e.Key == "Enter") { SendMessageWithClear(); } })"
                            placeholder="Digite um comando..." />
-                    <button class="send-button" @onclick="SendMessage">📨</button>
+                    <button class="send-button" @onclick="SendMessageWithClear">📨</button>
                 </div>
             </div>
         }
@@ -74,7 +74,7 @@
         StateHasChanged();
     }
 
-    private async Task SendMessage()
+    private async Task SendMessageWithClear()
     {
         if (string.IsNullOrEmpty(_message))
         {
@@ -86,7 +86,8 @@
 
         await HandleCommand(message);
 
-        _message = string.Empty;
+        _message = string.Empty; // Limpa o campo após o envio
+        StateHasChanged(); // Garante que a interface seja atualizada
         await ScrollToBottom();
     }
 

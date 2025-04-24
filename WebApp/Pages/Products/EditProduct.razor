@@ -1,4 +1,4 @@
-@page "/produtos/editar/{id:int}"
+@page "/products/edit/{id:int}"
 @using WebApp.Models
 @using WebApp.Components
 @inject HttpClient Http
@@ -64,7 +64,7 @@ else
             }
         </div>
 
-        <button type="submit" class="btn btn-primary" disabled="@(categorias == null || categorias.Count == 0)">Salvar Alterações</button>
+        <button type="submit" class="btn btn-primary" disabled="@(categorias == null || categorias.Count == 0)">Guardar Alterações</button>
         <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
     </EditForm>
 }
@@ -227,12 +227,12 @@ else
 
         if (shouldRedirect)
         {
-            Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Produto atualizado com sucesso!")}");
+            Navigation.NavigateTo($"/products?successMessage={Uri.EscapeDataString("Produto atualizado com sucesso!")}");
             shouldRedirect = false;
         }
     }
 
-    private void Voltar() => Navigation.NavigateTo("/produtos");
+    private void Voltar() => Navigation.NavigateTo("/products");
 
     private class ApiResponse<T>
     {

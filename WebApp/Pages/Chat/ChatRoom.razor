@@ -12,13 +12,13 @@
 
 @if (!isLoggedIn)
 {
-    <p>Você precisa estar logado para acessar a conversa.</p>
-    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+    <p>Você precisa efetuar login para acessar aos chats.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">Voltar</button>
 }
 else if (!isConnected)
 {
     <p>Não foi possível conectar ao chat. Tente novamente mais tarde.</p>
-    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+    <button class="btn btn-secondary" @onclick="GoBack">Voltar</button>
 }
 else
 {
@@ -29,7 +29,7 @@ else
                 <div class="message mb-2 @(msg.RemetenteId == userId ? "text-end" : "text-start")">
                     <strong>@(msg.RemetenteId == userId ? "Você" : msg.Remetente?.Username ?? "Desconhecido")</strong>
                     <small class="d-block">@msg.DataEnvio.ToString("dd/MM/yyyy HH:mm")</small>
-                    <p class="@(msg.RemetenteId == userId ? "bg-light p-2 rounded d-inline-block" : "bg-secondary text-white p-2 rounded d-inline-block")">
+                    <p style="background-color: @(msg.RemetenteId == userId ? "#e0f7fa" : "#81d4fa"); padding: 8px; border-radius: 8px; display: inline-block;">
                         @msg.Conteudo
                     </p>
                 </div>
@@ -44,7 +44,7 @@ else
         </div>
     </div>
 
-    <button class="btn btn-secondary mt-3" @onclick="GoBack">← Voltar</button>
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">Voltar</button>
 }
 
 @code {
@@ -128,10 +128,6 @@ else
         }
 
         // Carregar histórico de mensagens apenas entre userId e otherUserId
-        // Você pode criar um endpoint que retorne só as msgs desse par.
-        // Exemplo: GET api/Mensagens/conversation?u1=...&u2=...
-        // Ou filtrar no front-end.
-        // Aqui, para simplificar, vamos carregar TODAS do userId e filtrar:
         try
         {
             var allMyMsgs = await Http.GetFromJsonAsync<List<Mensagem>>($"api/Mensagens/user/{userId}") 

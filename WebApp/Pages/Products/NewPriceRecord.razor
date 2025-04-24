@@ -378,12 +378,12 @@ else
 
         if (shouldRedirect)
         {
-            Navigation.NavigateTo($"/produtos?successMessage={Uri.EscapeDataString("Preço registrado com sucesso!")}");
+            Navigation.NavigateTo($"/products?successMessage={Uri.EscapeDataString("Preço registrado com sucesso!")}");
             shouldRedirect = false;
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/produtos");
+    private void GoBack() => Navigation.NavigateTo("/products");
 
     private class ConfirmationResponse
     {
