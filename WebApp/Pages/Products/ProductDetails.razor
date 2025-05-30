@@ -56,9 +56,15 @@ else
     </div>
 
     <h4 class="mt-4">Gráfico de Evolução de Preços</h4>
-    @if (historicoPrecos != null && historicoPrecos.Any())
+    @if (isLoadingChart)
     {
-        <canvas id="priceChart" style="max-height: 400px;"></canvas>
+        <p>Carregando gráfico...</p>
+    }
+    else if (historicoPrecos != null && historicoPrecos.Any() && historicoPrecos.Any(h => h.Prices != null && h.Prices.Any()))
+    {
+        <div style="max-width: 800px; margin: auto;" id="chartContainer">
+            <canvas id="priceChart" style="max-height: 400px;"></canvas>
+        </div>
     }
     else
     {
@@ -185,6 +191,7 @@ else
     private List<RegistosPreco> DistinctByLojaRegistos = new();
     private bool showHistory = false;
     private bool isInitialized = false;
+    private bool isLoadingChart = false;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
@@ -313,6 +320,9 @@ else
                     ShowPopup("Erro ao verificar favoritos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
             }
+
+            // Carregar os dados do gráfico
+            await CarregarDadosGrafico();
         }
         catch (Exception ex)
         {
@@ -330,79 +340,113 @@ else
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task CarregarDadosGrafico()
     {
-        if (firstRender)
+        isLoadingChart = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
         {
-            try
+            Console.WriteLine($"[DEBUG] Tentando carregar o gráfico de preços para o produto {Id}");
+            var historyResponse = await Http.GetAsync($"api/Relatorios/produtos/{Id}/pricehistory");
+            Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Relatorios/produtos/{Id}/pricehistory: Status {historyResponse.StatusCode}");
+
+            if (historyResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                Console.WriteLine($"[DEBUG] Tentando carregar o gráfico de preços para o produto {Id}");
-                var historyResponse = await Http.GetAsync($"api/Relatorios/produtos/{Id}/pricehistory");
-                Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Relatorios/produtos/{Id}/pricehistory: Status {historyResponse.StatusCode}");
-                if (historyResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar o gráfico, redirecionando para login.");
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (historyResponse.IsSuccessStatusCode)
+            {
+                var historyApiResponse = await historyResponse.Content.ReadFromJsonAsync<ApiResponse<List<PriceHistoryDto>>>();
+                if (historyApiResponse?.Success == true)
                 {
-                    Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar o gráfico, redirecionando para login.");
-                    Navigation.NavigateTo("/login");
-                    return;
-                }
-                if (historyResponse.IsSuccessStatusCode)
-                {
-                    var historyApiResponse = await historyResponse.Content.ReadFromJsonAsync<ApiResponse<List<PriceHistoryDto>>>();
-                    if (historyApiResponse?.Success == true)
+                    historicoPrecos = historyApiResponse.Data;
+                    Console.WriteLine($"[DEBUG] Dados do gráfico recebidos: {historicoPrecos?.Count ?? 0} entradas");
+
+                    if (historicoPrecos != null && historicoPrecos.Any(h => h.Prices != null && h.Prices.Any()))
                     {
-                        Console.WriteLine($"[DEBUG] Dados do gráfico recebidos: {System.Text.Json.JsonSerializer.Serialize(historyApiResponse.Data)}");
-                        historicoPrecos = historyApiResponse.Data;
-                        if (historicoPrecos != null && historicoPrecos.Any())
+                        foreach (var history in historicoPrecos)
                         {
-                            // Prepara os dados para uma única linha (média de preços por data)
-                            var labels = historicoPrecos
-                                .SelectMany(h => h.Prices ?? new List<PricePoint>())
-                                .Select(p => p.Date.ToString("dd/MM/yyyy"))
-                                .Distinct()
-                                .OrderBy(d => DateTime.ParseExact(d, "dd/MM/yyyy", null))
-                                .ToList();
-
-                            var dataset = new
+                            Console.WriteLine($"[DEBUG] Loja: {history.LojaNome}, Preços: {history.Prices?.Count ?? 0}");
+                            if (history.Prices != null)
                             {
-                                label = "Preço Médio",
-                                data = labels.Select(label => historicoPrecos
-                                    .SelectMany(h => h.Prices ?? new List<PricePoint>())
-                                    .Where(p => p.Date.ToString("dd/MM/yyyy") == label)
-                                    .Select(p => (double)p.Price)
-                                    .FirstOrDefault())
-                                    .ToList(),
-                                borderColor = "rgb(75, 192, 192)",
-                                fill = false,
-                                tension = 0.1
-                            };
-
-                            await JSRuntime.InvokeVoidAsync("renderChart", "priceChart", labels, new[] { dataset });
-                            Console.WriteLine("[DEBUG] Gráfico renderizado com sucesso.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("[DEBUG] Nenhum dado de histórico de preços encontrado para o produto.");
-                            ShowPopup("Nenhum histórico de preços disponível para este produto.", MessagePopup.MessageType.Info);
+                                foreach (var price in history.Prices)
+                                {
+                                    Console.WriteLine($"[DEBUG] Data: {price.Date}, Preço: {price.Price}");
+                                }
+                            }
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"[DEBUG] Falha na resposta do endpoint: {historyApiResponse?.Message}");
-                        ShowPopup(historyApiResponse?.Message ?? "Erro ao carregar o histórico de preços.", MessagePopup.MessageType.Error);
+                        Console.WriteLine("[DEBUG] Nenhum dado de histórico de preços encontrado para o produto.");
+                        ShowPopup("Nenhum histórico de preços disponível para este produto.", MessagePopup.MessageType.Info);
                     }
                 }
                 else
                 {
-                    var errorContent = await historyResponse.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[DEBUG] Erro ao chamar o endpoint: Status {historyResponse.StatusCode}, Conteúdo: {errorContent}");
-                    ShowPopup($"Erro ao carregar o gráfico de preços: Status {historyResponse.StatusCode}", MessagePopup.MessageType.Error);
+                    Console.WriteLine($"[DEBUG] Falha na resposta do endpoint: {historyApiResponse?.Message}");
+                    ShowPopup(historyApiResponse?.Message ?? "Erro ao carregar o histórico de preços.", MessagePopup.MessageType.Error);
                 }
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"[DEBUG] Exceção ao carregar o gráfico: {ex.Message}\n{ex.StackTrace}");
-                ShowPopup($"Erro ao carregar o gráfico de preços: {ex.Message}", MessagePopup.MessageType.Error);
+                var errorContent = await historyResponse.Content.ReadAsStringAsync();
+                Console.WriteLine($"[DEBUG] Erro ao chamar o endpoint: Status {historyResponse.StatusCode}, Conteúdo: {errorContent}");
+                ShowPopup("Erro ao carregar o histórico de preços.", MessagePopup.MessageType.Error);
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Exceção ao carregar o gráfico: {ex.Message}\n{ex.StackTrace}");
+            ShowPopup($"Erro ao carregar o gráfico de preços: {ex.Message}", MessagePopup.MessageType.Error);
+            historicoPrecos = null;
+        }
+        finally
+        {
+            isLoadingChart = false;
+            await InvokeAsync(StateHasChanged);
+            if (historicoPrecos != null && historicoPrecos.Any(h => h.Prices != null && h.Prices.Any()))
+            {
+                await RenderizarGrafico();
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (isInitialized && produto != null && historicoPrecos != null && historicoPrecos.Any(h => h.Prices != null && h.Prices.Any()))
+        {
+            Console.WriteLine("[DEBUG] OnAfterRenderAsync chamado, verificando se o gráfico pode ser renderizado...");
+            await RenderizarGrafico();
+        }
+    }
+
+    private async Task RenderizarGrafico()
+    {
+        try
+        {
+            var canvasExists = await JSRuntime.InvokeAsync<bool>("eval", "!!document.getElementById('priceChart')");
+            Console.WriteLine($"[DEBUG] Canvas 'priceChart' existe: {canvasExists}");
+
+            if (canvasExists)
+            {
+                await JSRuntime.InvokeVoidAsync("renderPriceChart", historicoPrecos);
+                Console.WriteLine("[DEBUG] Gráfico renderizado com sucesso.");
+            }
+            else
+            {
+                Console.WriteLine("[DEBUG] Canvas 'priceChart' não encontrado no DOM.");
+                ShowPopup("Erro ao renderizar o gráfico: elemento canvas não encontrado.", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Erro ao renderizar o gráfico: {ex.Message}\n{ex.StackTrace}");
+            ShowPopup("Erro ao renderizar o gráfico.", MessagePopup.MessageType.Error);
         }
     }
 

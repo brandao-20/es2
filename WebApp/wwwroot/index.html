@@ -9,38 +9,6 @@
   <link rel="stylesheet" href="css/app.css" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link href="WebApp.styles.css" rel="stylesheet" />
-  
-  <!-- Carrega mapsInterop.js de forma síncrona -->
-  <script src="js/mapsInterop.js" onerror="console.error('[ERROR] Falha ao carregar js/mapsInterop.js. Verifique o caminho.');"></script>
-  <script src="js/download.js"></script>
-  <!-- Chart.js e adaptador para datas -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="js/charts.js"></script>
-  <script>
-    // Verifica imediatamente se mapsInterop foi carregado
-    console.log("[DEBUG] Verificando mapsInterop imediatamente após o script...");
-    if (typeof mapsInterop === 'undefined') {
-      console.error("[ERROR] mapsInterop não foi carregado imediatamente após o script. Verifique o caminho do script js/mapsInterop.js ou se há erros no script.");
-    } else {
-      console.log("[DEBUG] mapsInterop carregado com sucesso imediatamente após o script.");
-    }
-
-    // Verifica novamente no evento load
-    window.addEventListener('load', function () {
-      console.log("[DEBUG] Verificando mapsInterop no evento load...");
-      if (typeof mapsInterop === 'undefined') {
-        console.error("[ERROR] mapsInterop não foi carregado no evento load. Verifique o caminho do script js/mapsInterop.js ou se há erros no script.");
-      } else {
-        console.log("[DEBUG] mapsInterop carregado com sucesso no evento load.");
-      }
-    });
-
-    // Monitora o estado de mapsInterop a cada segundo
-    setInterval(() => {
-      console.log("[DEBUG] Estado de mapsInterop:", typeof mapsInterop);
-    }, 1000);
-  </script>
 </head>
 <body>
   <div id="app">Carregando...</div>
@@ -49,6 +17,48 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
   </div>
+
+  <!-- Scripts -->
+  <script src="js/mapsInterop.js" onerror="console.error('[ERROR] Falha ao carregar js/mapsInterop.js. Verifique o caminho.');"></script>
+  <script src="js/download.js"></script>
+  <!-- Incluir apenas o Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script src="js/charts.js" onerror="console.error('[ERROR] Falha ao carregar js/charts.js. Verifique o caminho.');"></script>
   <script src="_framework/blazor.webassembly.js"></script>
+  <script>
+    console.log("[DEBUG] Verificando mapsInterop imediatamente após o script...");
+    if (typeof mapsInterop === 'undefined') {
+      console.error("[ERROR] mapsInterop não foi carregado imediatamente após o script. Verifique o caminho do script js/mapsInterop.js ou se há erros no script.");
+    } else {
+      console.log("[DEBUG] mapsInterop carregado com sucesso imediatamente após o script.");
+    }
+
+    console.log("[DEBUG] Verificando renderPriceChart imediatamente após o script...");
+    if (typeof renderPriceChart === 'undefined') {
+      console.error("[ERROR] renderPriceChart não foi carregado. Verifique o caminho do script js/charts.js ou se há erros no script.");
+    } else {
+      console.log("[DEBUG] renderPriceChart carregado com sucesso imediatamente após o script.");
+    }
+
+    window.addEventListener('load', function () {
+      console.log("[DEBUG] Verificando mapsInterop no evento load...");
+      if (typeof mapsInterop === 'undefined') {
+        console.error("[ERROR] mapsInterop não foi carregado no evento load. Verifique o caminho do script js/mapsInterop.js ou se há erros no script.");
+      } else {
+        console.log("[DEBUG] mapsInterop carregado com sucesso no evento load.");
+      }
+
+      console.log("[DEBUG] Verificando renderPriceChart no evento load...");
+      if (typeof renderPriceChart === 'undefined') {
+        console.error("[ERROR] renderPriceChart não foi carregado no evento load. Verifique o caminho do script js/charts.js ou se há erros no script.");
+      } else {
+        console.log("[DEBUG] renderPriceChart carregado com sucesso no evento load.");
+      }
+    });
+
+    setInterval(() => {
+      console.log("[DEBUG] Estado de mapsInterop:", typeof mapsInterop);
+    }, 1000);
+  </script>
 </body>
 </html>

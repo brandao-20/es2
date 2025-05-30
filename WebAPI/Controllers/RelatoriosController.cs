@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebAPI.Context;
 using WebAPI.Entities;
-using WebAPI.ExportStrategies;
 using WebAPI.Repositories;
 using WebAPI.DTOs;
 
@@ -17,20 +16,17 @@ namespace WebAPI.Controllers
         private readonly ILojaRepository _lojaRepository;
         private readonly IRegistosPrecoRepository _registosPrecoRepository;
         private readonly IProdutoRepository _produtoRepository;
-        private readonly ReportExportService _exportService;
         private readonly AppDbContext _context;
 
         public RelatoriosController(
             ILojaRepository lojaRepository,
             IRegistosPrecoRepository registosPrecoRepository,
             IProdutoRepository produtoRepository,
-            ReportExportService exportService,
             AppDbContext context)
         {
             _lojaRepository = lojaRepository;
             _registosPrecoRepository = registosPrecoRepository;
             _produtoRepository = produtoRepository;
-            _exportService = exportService;
             _context = context;
         }
 
@@ -192,53 +188,12 @@ namespace WebAPI.Controllers
             }
         }
 
-        [HttpGet("export")]
-        public IActionResult ExportReport(string format)
-        {
-            Console.WriteLine($"[DEBUG] Iniciando ExportReport com formato: {format}");
-            try
-            {
-                var data = _context.RegistosPrecos
-                    .Include(rp => rp.Produto)
-                        .ThenInclude(p => p.Categoria!)
-                    .Include(rp => rp.Loja)
-                    .Select(rp => new Relatorio
-                    {
-                        NomeProduto = rp.Produto != null ? rp.Produto.Nome : "N/A",
-                        ProdutoId = rp.Produto != null ? rp.Produto.ProdutoId : 0,
-                        NomeLoja = rp.Loja != null ? rp.Loja.Nome : "N/A",
-                        LojaId = rp.Loja != null ? rp.Loja.LojaId : 0,
-                        Preco = rp.Preco,
-                        Data = rp.DataRegisto,
-                        CategoriaId = rp.Produto != null && rp.Produto.Categoria != null ? rp.Produto.Categoria.CategoriaId : 0
-                    })
-                    .ToList();
-
-                var fileContent = _exportService.ExportReport(data, format);
-                var contentType = format.ToLower() == "csv" ? "text/csv" : "application/pdf";
-                var fileName = $"relatorio_precos_{DateTime.Now:yyyyMMdd}.{format}";
-                Console.WriteLine($"[DEBUG] Relatório exportado com sucesso: {fileName}");
-                return File(fileContent, contentType, fileName);
-            }
-            catch (ArgumentException ex)
-            {
-                Console.WriteLine($"[ERROR] Erro de argumento ao exportar relatório: {ex.Message}");
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] Erro ao exportar relatório: {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { Message = "Erro ao exportar relatório." });
-            }
-        }
-
         [HttpGet("produtos/{produtoId}/pricehistory")]
-        public async Task<IActionResult> GetPriceHistory(int produtoId)
+        public async Task<IActionResult> GetPriceHistory(int produtoId, [FromQuery] bool groupByStore = false)
         {
-            Console.WriteLine($"[DEBUG] Buscando histórico de preços para ProdutoId: {produtoId}");
+            Console.WriteLine($"[DEBUG] Buscando histórico de preços para ProdutoId: {produtoId}, GroupByStore: {groupByStore}");
             try
             {
-                // Verificar se o produto existe
                 var produtoExists = await _context.Produtos.AnyAsync(p => p.ProdutoId == produtoId);
                 if (!produtoExists)
                 {
@@ -254,10 +209,12 @@ namespace WebAPI.Controllers
                 Console.WriteLine("[DEBUG] Executando query para buscar registros de preços...");
                 var registos = await _context.RegistosPrecos
                     .Where(r => r.ProdutoId == produtoId)
+                    .Include(r => r.Loja)
                     .Select(r => new
                     {
                         DataRegisto = r.DataRegisto,
-                        Preco = r.Preco
+                        Preco = r.Preco,
+                        LojaNome = r.Loja != null ? r.Loja.Nome : "N/A"
                     })
                     .ToListAsync();
 
@@ -274,25 +231,48 @@ namespace WebAPI.Controllers
                     });
                 }
 
-                // Agrupar por data e calcular a média dos preços
-                var priceHistory = registos
-                    .GroupBy(r => r.DataRegisto.Date)
-                    .Select(g => new PriceHistoryDto
-                    {
-                        LojaNome = "Média",
-                        Prices = new List<PricePoint>
-                        {
-                            new PricePoint
-                            {
-                                Date = g.Key,
-                                Price = g.Average(r => r.Preco)
-                            }
-                        }
-                    })
-                    .OrderBy(h => h.Prices.First().Date)
-                    .ToList();
+                List<PriceHistoryDto> priceHistory;
 
-                Console.WriteLine($"[DEBUG] Histórico de preços encontrado: {priceHistory.Count} datas");
+                if (groupByStore)
+                {
+                    priceHistory = registos
+                        .GroupBy(r => r.LojaNome)
+                        .Select(g => new PriceHistoryDto
+                        {
+                            LojaNome = g.Key,
+                            Prices = g
+                                .GroupBy(r => r.DataRegisto.Date)
+                                .Select(grp => new PricePoint
+                                {
+                                    Date = grp.Key,
+                                    Price = grp.Average(r => r.Preco)
+                                })
+                                .OrderBy(p => p.Date)
+                                .ToList()
+                        })
+                        .ToList();
+                }
+                else
+                {
+                    priceHistory = registos
+                        .GroupBy(r => r.DataRegisto.Date)
+                        .Select(g => new PriceHistoryDto
+                        {
+                            LojaNome = "Média",
+                            Prices = new List<PricePoint>
+                            {
+                                new PricePoint
+                                {
+                                    Date = g.Key,
+                                    Price = g.Average(r => r.Preco)
+                                }
+                            }
+                        })
+                        .OrderBy(h => h.Prices.First().Date)
+                        .ToList();
+                }
+
+                Console.WriteLine($"[DEBUG] Histórico de preços encontrado: {priceHistory.Count} entradas");
                 return Ok(new ApiResponse<List<PriceHistoryDto>>
                 {
                     Success = true,
@@ -371,5 +351,17 @@ namespace WebAPI.Controllers
         public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
         public T? Data { get; set; }
+    }
+
+    public class PriceHistoryDto
+    {
+        public string? LojaNome { get; set; }
+        public List<PricePoint>? Prices { get; set; }
+    }
+
+    public class PricePoint
+    {
+        public DateTime Date { get; set; }
+        public decimal Price { get; set; }
     }
 }
