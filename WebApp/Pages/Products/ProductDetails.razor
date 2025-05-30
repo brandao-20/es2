@@ -4,6 +4,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Detalhes do Produto</PageTitle>
 
@@ -31,7 +32,6 @@ else
             <p class="card-text"><strong>Marca:</strong> @produto.Marca</p>
             <p class="card-text"><strong>Descrição:</strong> @produto.Descricao</p>
             <p class="card-text"><strong>Categoria:</strong> @produto.Categoria?.Nome</p>
-            <!-- Exibição da Credibilidade Ajustada -->
             @if (credibilidade.HasValue)
             {
                 <p class="card-text">
@@ -46,8 +46,24 @@ else
             {
                 <p class="card-text"><strong>Credibilidade:</strong> Não disponível</p>
             }
+            @if (AuthService.IsLoggedIn)
+            {
+                <button class="btn btn-primary btn-sm mt-2" @onclick="ToggleFavorite">
+                    @(isFavorite ? "Remover Favorito" : "Favoritar")
+                </button>
+            }
         </div>
     </div>
+
+    <h4 class="mt-4">Gráfico de Evolução de Preços</h4>
+    @if (historicoPrecos != null && historicoPrecos.Any())
+    {
+        <canvas id="priceChart" style="max-height: 400px;"></canvas>
+    }
+    else
+    {
+        <p>Sem histórico de preços disponível para este produto.</p>
+    }
 
     <h4 class="mt-4">Registos de Preços</h4>
 
@@ -58,13 +74,11 @@ else
     else
     {
         <div class="mb-3">
-            <!-- Botão para alternar entre 'Mais Recentes' e 'Histórico Completo' -->
             <button class="btn btn-secondary" @onclick="ToggleHistory">
                 @(showHistory ? "Exibir apenas preços mais recentes" : "Ver Histórico Completo")
             </button>
         </div>
 
-        <!-- Lógica: se showHistory == true, exibe todos; senão, exibe só o mais recente por loja -->
         @if (showHistory)
         {
             <table class="table table-striped">
@@ -109,7 +123,6 @@ else
         }
         else
         {
-            <!-- Exibe apenas o mais recente de cada loja -->
             <table class="table table-striped">
                 <thead>
                     <tr>
@@ -155,7 +168,6 @@ else
     <button class="btn btn-secondary mt-3" @onclick="Voltar">Voltar</button>
 }
 
-<!-- Popup para mensagens -->
 <MessagePopup
     IsVisible="@showPopup"
     Message="@popupMessage"
@@ -168,6 +180,7 @@ else
 
     private Produto? produto;
     private List<RegistosPreco>? registosPrecos;
+    private List<PriceHistoryDto>? historicoPrecos;
     private double? credibilidade;
     private List<RegistosPreco> DistinctByLojaRegistos = new();
     private bool showHistory = false;
@@ -175,11 +188,13 @@ else
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+    private bool isFavorite = false;
 
     protected override async Task OnInitializedAsync()
     {
         if (!AuthService.ValidateToken())
         {
+            Console.WriteLine("[DEBUG] Token inválido ou expirado, redirecionando para login.");
             Navigation.NavigateTo("/login");
             return;
         }
@@ -193,15 +208,22 @@ else
 
         try
         {
-            // Carregar os detalhes do produto
             Console.WriteLine($"[DEBUG] Carregando detalhes do produto com ID: {Id}");
             var prodResponse = await Http.GetAsync($"api/Produtos/{Id}");
+            Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Produtos/{Id}: Status {prodResponse.StatusCode}");
+            if (prodResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar produto, redirecionando para login.");
+                Navigation.NavigateTo("/login");
+                return;
+            }
             if (prodResponse.IsSuccessStatusCode)
             {
                 var apiResponse = await prodResponse.Content.ReadFromJsonAsync<ApiResponse<Produto>>();
                 if (apiResponse?.Success == true)
                 {
                     produto = apiResponse.Data;
+                    Console.WriteLine($"[DEBUG] Produto carregado: {produto?.Nome}");
                 }
                 else
                 {
@@ -215,15 +237,16 @@ else
                 ShowPopup("Erro ao carregar os detalhes do produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
-            // Carregar a credibilidade ajustada por antiguidade
             Console.WriteLine($"[DEBUG] Carregando credibilidade ajustada para o produto com ID: {Id}");
             var credibilidadeResponse = await Http.GetAsync($"api/Produtos/{Id}/credibilidade");
+            Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Produtos/{Id}/credibilidade: Status {credibilidadeResponse.StatusCode}");
             if (credibilidadeResponse.IsSuccessStatusCode)
             {
                 var apiResponse = await credibilidadeResponse.Content.ReadFromJsonAsync<ApiResponse<CredibilidadeResponse>>();
                 if (apiResponse?.Success == true)
                 {
                     credibilidade = apiResponse.Data?.Credibilidade;
+                    Console.WriteLine($"[DEBUG] Credibilidade carregada: {credibilidade}");
                 }
                 else
                 {
@@ -237,9 +260,9 @@ else
                 ShowPopup("Erro ao carregar a credibilidade. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
 
-            // Carregar os registos de preço deste produto
             Console.WriteLine($"[DEBUG] Carregando registos de preços para o produto com ID: {Id}");
             var regResponse = await Http.GetAsync($"api/RegistosPrecos/produto/{Id}");
+            Console.WriteLine($"[DEBUG] Resposta do endpoint /api/RegistosPrecos/produto/{Id}: Status {regResponse.StatusCode}");
             if (regResponse.IsSuccessStatusCode)
             {
                 var apiResponse = await regResponse.Content.ReadFromJsonAsync<ApiResponse<List<RegistosPreco>>>();
@@ -251,6 +274,7 @@ else
                         .Select(g => g.OrderByDescending(x => x.DataRegisto).First())
                         .OrderByDescending(r => r.DataRegisto)
                         .ToList();
+                    Console.WriteLine($"[DEBUG] Registros de preços carregados: {registosPrecos.Count}");
                 }
                 else
                 {
@@ -265,6 +289,30 @@ else
                 DistinctByLojaRegistos = new List<RegistosPreco>();
                 ShowPopup("Erro ao carregar os registos de preços. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
+
+            if (AuthService.IsLoggedIn)
+            {
+                Console.WriteLine($"[DEBUG] Verificando se o produto {Id} é favorito do usuário {AuthService.UserId}");
+                var favoritoResponse = await Http.GetAsync($"api/Favoritos/user/{AuthService.UserId}");
+                Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Favoritos/user/{AuthService.UserId}: Status {favoritoResponse.StatusCode}");
+                if (favoritoResponse.IsSuccessStatusCode)
+                {
+                    var favoritoApiResponse = await favoritoResponse.Content.ReadFromJsonAsync<ApiResponse<List<Favorito>>>();
+                    if (favoritoApiResponse?.Success == true)
+                    {
+                        isFavorite = favoritoApiResponse.Data?.Any(f => f.ProdutoId == Id) ?? false;
+                        Console.WriteLine($"[DEBUG] Produto é favorito: {isFavorite}");
+                    }
+                    else
+                    {
+                        ShowPopup(favoritoApiResponse?.Message ?? "Erro ao verificar favoritos.", MessagePopup.MessageType.Error);
+                    }
+                }
+                else
+                {
+                    ShowPopup("Erro ao verificar favoritos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -273,12 +321,139 @@ else
             DistinctByLojaRegistos = new List<RegistosPreco>();
             credibilidade = null;
             ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Exceção ao carregar dados: {ex.Message}\n{ex.StackTrace}");
         }
         finally
         {
             isInitialized = true;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                Console.WriteLine($"[DEBUG] Tentando carregar o gráfico de preços para o produto {Id}");
+                var historyResponse = await Http.GetAsync($"api/Relatorios/produtos/{Id}/pricehistory");
+                Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Relatorios/produtos/{Id}/pricehistory: Status {historyResponse.StatusCode}");
+                if (historyResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar o gráfico, redirecionando para login.");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+                if (historyResponse.IsSuccessStatusCode)
+                {
+                    var historyApiResponse = await historyResponse.Content.ReadFromJsonAsync<ApiResponse<List<PriceHistoryDto>>>();
+                    if (historyApiResponse?.Success == true)
+                    {
+                        Console.WriteLine($"[DEBUG] Dados do gráfico recebidos: {System.Text.Json.JsonSerializer.Serialize(historyApiResponse.Data)}");
+                        historicoPrecos = historyApiResponse.Data;
+                        if (historicoPrecos != null && historicoPrecos.Any())
+                        {
+                            // Prepara os dados para uma única linha (média de preços por data)
+                            var labels = historicoPrecos
+                                .SelectMany(h => h.Prices ?? new List<PricePoint>())
+                                .Select(p => p.Date.ToString("dd/MM/yyyy"))
+                                .Distinct()
+                                .OrderBy(d => DateTime.ParseExact(d, "dd/MM/yyyy", null))
+                                .ToList();
+
+                            var dataset = new
+                            {
+                                label = "Preço Médio",
+                                data = labels.Select(label => historicoPrecos
+                                    .SelectMany(h => h.Prices ?? new List<PricePoint>())
+                                    .Where(p => p.Date.ToString("dd/MM/yyyy") == label)
+                                    .Select(p => (double)p.Price)
+                                    .FirstOrDefault())
+                                    .ToList(),
+                                borderColor = "rgb(75, 192, 192)",
+                                fill = false,
+                                tension = 0.1
+                            };
+
+                            await JSRuntime.InvokeVoidAsync("renderChart", "priceChart", labels, new[] { dataset });
+                            Console.WriteLine("[DEBUG] Gráfico renderizado com sucesso.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("[DEBUG] Nenhum dado de histórico de preços encontrado para o produto.");
+                            ShowPopup("Nenhum histórico de preços disponível para este produto.", MessagePopup.MessageType.Info);
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[DEBUG] Falha na resposta do endpoint: {historyApiResponse?.Message}");
+                        ShowPopup(historyApiResponse?.Message ?? "Erro ao carregar o histórico de preços.", MessagePopup.MessageType.Error);
+                    }
+                }
+                else
+                {
+                    var errorContent = await historyResponse.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[DEBUG] Erro ao chamar o endpoint: Status {historyResponse.StatusCode}, Conteúdo: {errorContent}");
+                    ShowPopup($"Erro ao carregar o gráfico de preços: Status {historyResponse.StatusCode}", MessagePopup.MessageType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Exceção ao carregar o gráfico: {ex.Message}\n{ex.StackTrace}");
+                ShowPopup($"Erro ao carregar o gráfico de preços: {ex.Message}", MessagePopup.MessageType.Error);
+            }
+        }
+    }
+
+    private async Task ToggleFavorite()
+    {
+        if (!AuthService.IsLoggedIn)
+        {
+            ShowPopup("Faça login para favoritar produtos.", MessagePopup.MessageType.Error);
+            return;
+        }
+
+        try
+        {
+            Console.WriteLine($"[DEBUG] Tentando favoritar/desfavoritar o produto {Id} para o usuário {AuthService.UserId}");
+            var favorito = new Favorito { ProdutoId = Id, UtilizadorId = AuthService.UserId };
+            var response = await Http.PostAsJsonAsync("api/Favoritos", favorito);
+            Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Favoritos: Status {response.StatusCode}");
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Console.WriteLine("[DEBUG] Token inválido ou expirado ao favoritar, redirecionando para login.");
+                Navigation.NavigateTo("/login");
+                return;
+            }
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                if (apiResponse?.Success == true)
+                {
+                    isFavorite = !isFavorite;
+                    ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
+                    Console.WriteLine($"[DEBUG] Favoritar/desfavoritar bem-sucedido: {apiResponse.Message}");
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? "Erro ao favoritar/desfavoritar o produto.", MessagePopup.MessageType.Error);
+                    Console.WriteLine($"[DEBUG] Falha ao favoritar/desfavoritar: {apiResponse?.Message}");
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                ShowPopup($"Erro ao favoritar/desfavoritar o produto: Status {response.StatusCode}", MessagePopup.MessageType.Error);
+                Console.WriteLine($"[DEBUG] Erro ao chamar /api/Favoritos: Status {response.StatusCode}, Conteúdo: {errorContent}");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro inesperado ao favoritar/desfavoritar: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Exceção ao favoritar/desfavoritar: {ex.Message}\n{ex.StackTrace}");
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
     private void ToggleHistory()
@@ -330,5 +505,17 @@ else
         public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
         public T? Data { get; set; }
+    }
+
+    private class PriceHistoryDto
+    {
+        public string? LojaNome { get; set; }
+        public List<PricePoint>? Prices { get; set; }
+    }
+
+    private class PricePoint
+    {
+        public DateTime Date { get; set; }
+        public decimal Price { get; set; }
     }
 }

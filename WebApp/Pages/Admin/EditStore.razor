@@ -40,11 +40,11 @@ else
             <div class="alert alert-info">
                 Clique no mapa para mover o marcador e atualizar a localização.
                 <br />
-                Endereço: @loja.Endereco
+                Endereço: @(loja.Endereco ?? "Não definido")
                 <br />
-                Latitude: @(loja.Localizacao != null ? loja.Localizacao.Latitude : "Não definido")
+                Latitude: @(loja.Localizacao?.Latitude?.ToString() ?? "Não definido")
                 <br />
-                Longitude: @(loja.Localizacao != null ? loja.Localizacao.Longitude : "Não definido")
+                Longitude: @(loja.Localizacao?.Longitude?.ToString() ?? "Não definido")
             </div>
 
             <button type="submit" class="btn btn-primary">Guardar</button>

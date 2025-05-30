@@ -8,11 +8,12 @@
         public string Email { get; set; } = string.Empty;
         public string? GoogleToken { get; set; }
         public string? GoogleId { get; set; }
-
         public string? Telefone { get; set; }
         public string? Cargo { get; set; }
         public DateTime DataCriacao { get; set; }
         public int? TipoUtilizadorId { get; set; }
         public TipoUtilizador? TipoUtilizador { get; set; }
+        public int Pontos { get; set; }
+        public List<Favorito> Favoritos { get; set; } = new();
     }
 }

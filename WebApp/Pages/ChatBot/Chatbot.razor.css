@@ -5,6 +5,8 @@
     z-index: 1000;
     display: flex;
     align-items: flex-end;
+    max-width: 100vw; /* Garante que o container não exceda a largura da viewport */
+    box-sizing: border-box; /* Evita que padding/margens causem overflow */
 }
 
 .chatbot-button {
@@ -33,12 +35,15 @@
 
 .chatbot-chat {
     width: 400px;
+    max-width: 90vw; /* Garante que não exceda 90% da largura da viewport */
     height: 80vh;
+    max-height: 80vh; /* Evita que o chat exceda a altura da tela */
     background-color: white;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     border-radius: 10px;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box; /* Evita que padding/margens causem overflow */
 }
 
 .chat-header {
@@ -150,4 +155,19 @@
 .bg-warning {
     background-color: #fff3cd;
     border-color: #ffeeba;
+}
+
+@media (max-width: 640px) {
+    .chatbot-chat {
+        width: 100vw; /* Usa a largura total da viewport em telas pequenas */
+        max-width: 100vw;
+        height: 70vh; /* Reduz a altura em telas pequenas */
+        max-height: 70vh;
+        border-radius: 0; /* Remove bordas arredondadas para melhor ajuste */
+    }
+
+    .chat-container {
+        right: 0;
+        bottom: 0;
+    }
 }

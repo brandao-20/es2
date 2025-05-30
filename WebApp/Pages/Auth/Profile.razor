@@ -1,5 +1,6 @@
 @page "/profile"
 @using WebApp.Components
+@using WebApp.Models
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject WebApp.Services.AuthService AuthService
@@ -15,9 +16,43 @@ else
 {
     <p><strong>Nome de Utilizador:</strong> @AuthService.UserName</p>
     <p><strong>Papel (Role):</strong> @AuthService.Role</p>
-    <!-- Se desejar, poderíamos buscar mais dados do servidor, como Email, Telefone, etc. -->
+    <p><strong>Pontos:</strong> @userPontos</p>
 
-    <button class="btn btn-warning" @onclick="AskDelete">Eliminar Conta</button>
+    <h4 class="mt-4">Ranking de Utilizadores</h4>
+    @if (ranking == null)
+    {
+        <p>Carregando ranking...</p>
+    }
+    else if (!ranking.Any())
+    {
+        <p>Nenhum utilizador no ranking.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Posição</th>
+                    <th>Username</th>
+                    <th>Pontos</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < ranking.Count; i++)
+                {
+                    var u = ranking[i];
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td>@u.Username</td>
+                        <td>@u.Pontos</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <a href="/favorites" class="btn btn-info mt-3">Ver Produtos Favoritos</a>
+    <button class="btn btn-warning mt-3" @onclick="AskDelete">Eliminar Conta</button>
 
     <!-- Popup para mensagens -->
     <MessagePopup
@@ -93,12 +128,66 @@ else
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+    private int userPontos = 0;
+    private List<RankingDto> ranking = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (!AuthService.ValidateToken())
         {
             Navigation.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            // Carregar pontos do utilizador
+            var userResponse = await Http.GetAsync($"api/Utilizadores/adminget/{AuthService.UserId}");
+            if (userResponse.IsSuccessStatusCode)
+            {
+                var userApiResponse = await userResponse.Content.ReadFromJsonAsync<ApiResponse<Utilizador>>();
+                if (userApiResponse?.Success == true)
+                {
+                    userPontos = userApiResponse.Data?.Pontos ?? 0;
+                    Console.WriteLine($"[DEBUG] Pontos do utilizador carregados: {userPontos}");
+                }
+                else
+                {
+                    Console.WriteLine("[DEBUG] Falha ao carregar pontos do utilizador: resposta não bem-sucedida.");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[DEBUG] Erro ao carregar pontos do utilizador: Status {userResponse.StatusCode}");
+            }
+
+            // Carregar ranking (apenas para Admins)
+            if (AuthService.IsAdmin)
+            {
+                var rankingResponse = await Http.GetAsync("api/Utilizadores/ranking");
+                if (rankingResponse.IsSuccessStatusCode)
+                {
+                    var rankingApiResponse = await rankingResponse.Content.ReadFromJsonAsync<ApiResponse<List<RankingDto>>>();
+                    if (rankingApiResponse?.Success == true)
+                    {
+                        ranking = rankingApiResponse.Data ?? new List<RankingDto>();
+                        Console.WriteLine($"[DEBUG] Ranking carregado: {ranking.Count} utilizadores.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("[DEBUG] Falha ao carregar ranking: resposta não bem-sucedida.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[DEBUG] Erro ao carregar ranking: Status {rankingResponse.StatusCode}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro ao carregar dados do perfil: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Exceção ao carregar dados do perfil: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -121,9 +210,7 @@ else
                 if (apiResponse?.Success == true)
                 {
                     ShowPopup(apiResponse.Message, MessagePopup.MessageType.Success);
-                    // Limpa dados de autenticação local
                     AuthService.Clear();
-                    // Redireciona para home (ou login)
                     Navigation.NavigateTo("/");
                 }
                 else
@@ -140,6 +227,7 @@ else
         catch (Exception ex)
         {
             ShowPopup($"Erro inesperado ao remover a conta: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Exceção ao remover conta: {ex.Message}\n{ex.StackTrace}");
         }
 
         showConfirm = false;
@@ -165,5 +253,12 @@ else
         public string? ErrorCode { get; set; }
         public int StatusCode { get; set; }
         public T? Data { get; set; }
+    }
+
+    private class RankingDto
+    {
+        public int UtilizadorId { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public int Pontos { get; set; }
     }
 }

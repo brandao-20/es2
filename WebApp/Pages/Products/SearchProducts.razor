@@ -50,7 +50,7 @@ else
     {
         <div class="mb-3">
             <label>Categoria:</label>
-            @if (categorias == null || categorias.Count == 0)
+            @if (categoriasPlanas == null || !categoriasPlanas.Any())
             {
                 <p class="text-danger">Nenhuma categoria disponível.</p>
             }
@@ -58,9 +58,9 @@ else
             {
                 <select class="form-select" @bind="searchCriteria.CategoryId">
                     <option value="">Selecione uma categoria</option>
-                    @foreach (var cat in categorias)
+                    @foreach (var cat in categoriasPlanas)
                     {
-                        <option value="@cat.CategoriaId">@cat.Nome</option>
+                        <option value="@cat.CategoriaId">@cat.NomeExibicao</option>
                     }
                 </select>
             }
@@ -138,8 +138,9 @@ else
     private bool useCategory;
     private bool useStore;
     private bool useDate;
-    private List<Produto> products;
+    private List<Produto> products = new List<Produto>();
     private List<Categoria>? categorias;
+    private List<CategoriaSubcategorias> categoriasPlanas = new();
     private SearchCriteria searchCriteria = new SearchCriteria();
     private bool isInitialized = false;
     private bool isSearching = false;
@@ -155,8 +156,6 @@ else
             return;
         }
 
-        products = new List<Produto>();
-
         try
         {
             // Carregar categorias para o filtro
@@ -168,23 +167,31 @@ else
                 if (apiResponse?.Success == true)
                 {
                     categorias = apiResponse.Data ?? new List<Categoria>();
-                    Console.WriteLine($"[DEBUG] Categorias carregadas: {categorias.Count}");
+                    categoriasPlanas = CategoriaSubcategorias.Achatadas(categorias);
+                    Console.WriteLine($"[DEBUG] Categorias achatadas: {categoriasPlanas.Count}");
+                    foreach (var cat in categoriasPlanas)
+                    {
+                        Console.WriteLine($"[DEBUG] Categoria: {cat.NomeExibicao}");
+                    }
                 }
                 else
                 {
                     categorias = new List<Categoria>();
+                    categoriasPlanas = new List<CategoriaSubcategorias>();
                     ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
                 }
             }
             else
             {
                 categorias = new List<Categoria>();
+                categoriasPlanas = new List<CategoriaSubcategorias>();
                 ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
         {
             categorias = new List<Categoria>();
+            categoriasPlanas = new List<CategoriaSubcategorias>();
             ShowPopup($"Erro inesperado ao carregar as categorias: {ex.Message}", MessagePopup.MessageType.Error);
         }
         finally
@@ -216,7 +223,6 @@ else
 
     private async Task HandleSearch()
     {
-        // Validação: pelo menos um critério deve estar preenchido
         if (!CanSearch)
         {
             ShowPopup("Selecione e preencha pelo menos um critério de pesquisa.", MessagePopup.MessageType.Error);

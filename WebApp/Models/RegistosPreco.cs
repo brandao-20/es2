@@ -10,10 +10,11 @@
         public int ProdutoId { get; set; }
         public int LojaId { get; set; }
         public int UtilizadorId { get; set; }
-    
+
         public Produto? Produto { get; set; }
         public Loja? Loja { get; set; }
         public string LojaNome => Loja?.Nome ?? "";
         public TipoAcao? TipoAcao { get; set; }
+        public List<Comentario> Comentarios { get; set; } = new();
     }
 }

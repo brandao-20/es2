@@ -154,7 +154,6 @@ else
             return;
         }
 
-        // Verificar se há uma mensagem de sucesso na URL
         var uri = new Uri(Navigation.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
         var successMessage = query["successMessage"];
@@ -172,6 +171,8 @@ else
         {
             Console.WriteLine($"[DEBUG] Carregando produtos - Página: {currentPage}, Tamanho da página: {pageSize}");
             var response = await Http.GetAsync($"api/Produtos?page={currentPage}&pageSize={pageSize}");
+            Console.WriteLine($"[DEBUG] Resposta do servidor: StatusCode={response.StatusCode}");
+
             if (response.IsSuccessStatusCode)
             {
                 var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
@@ -194,13 +195,16 @@ else
                     produtos = new List<Produto>();
                     totalPages = 1;
                     ShowPopup(apiResponse?.Message ?? "Erro ao carregar os produtos.", MessagePopup.MessageType.Error);
+                    Console.WriteLine($"[DEBUG] Resposta da API com erro: {apiResponse?.Message}");
                 }
             }
             else
             {
                 produtos = new List<Produto>();
                 totalPages = 1;
-                ShowPopup("Erro ao carregar os produtos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                var errorContent = await response.Content.ReadAsStringAsync();
+                ShowPopup($"Erro ao carregar os produtos: {errorContent}", MessagePopup.MessageType.Error);
+                Console.WriteLine($"[DEBUG] Erro na resposta do servidor: StatusCode={response.StatusCode}, Conteúdo={errorContent}");
             }
         }
         catch (Exception ex)
@@ -208,6 +212,7 @@ else
             produtos = new List<Produto>();
             totalPages = 1;
             ShowPopup($"Erro inesperado ao carregar os produtos: {ex.Message}", MessagePopup.MessageType.Error);
+            Console.WriteLine($"[DEBUG] Exceção ao carregar produtos: {ex.Message}");
         }
         finally
         {

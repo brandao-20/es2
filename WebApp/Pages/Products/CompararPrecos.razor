@@ -1,0 +1,312 @@
+@page "/comparar-precos"
+@inject HttpClient Http;
+@inject IJSRuntime JSRuntime;
+
+<h3>Comparar Preços de Produtos</h3>
+
+<div class="form-group">
+    <label for="produtoId">Selecionar Produto:</label>
+    <select @onchange="OnProdutoChangedAsync" class="form-control" style="width: 300px;">
+        <option value="0">Escolha um produto...</option>
+        @foreach (var produto in produtos)
+        {
+            <option value="@produto.ProdutoId">@produto.Nome (@produto.Marca)</option>
+        }
+    </select>
+</div>
+
+@if (produtoId > 0)
+{
+    @if (lojasDisponiveis == null || !lojasDisponiveis.Any())
+    {
+        <p>Sem lojas disponíveis para este produto.</p>
+    }
+    else
+    {
+        <div class="form-group mt-3">
+            <label for="lojaId1">Selecionar Primeira Loja:</label>
+            <select @bind-value="lojaId1" @bind-value:event="onchange" class="form-control" style="width: 300px;">
+                <option value="0">Escolha uma loja...</option>
+                @foreach (var loja in lojasDisponiveis)
+                {
+                    <option value="@loja.LojaId">@loja.Nome</option>
+                }
+            </select>
+        </div>
+
+        <div class="form-group mt-3">
+            <label for="lojaId2">Selecionar Segunda Loja:</label>
+            <select @bind-value="lojaId2" @bind-value:event="onchange" class="form-control" style="width: 300px;">
+                <option value="0">Escolha uma loja...</option>
+                @foreach (var loja in lojasDisponiveis)
+                {
+                    <option value="@loja.LojaId">@loja.Nome</option>
+                }
+            </select>
+        </div>
+
+        @if (lojaId1 > 0 && lojaId2 > 0)
+        {
+            <h4 class="mt-4">Preços Atuais do Produto: @precoComparacao?.NomeProduto</h4>
+            @if (precoComparacao?.PrecosAtuais?.Any() == true)
+            {
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Loja</th>
+                            <th>Preço (€)</th>
+                            <th>Data de Registo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var preco in precoComparacao.PrecosAtuais)
+                        {
+                            <tr>
+                                <td>@preco.NomeLoja</td>
+                                <td>@preco.Preco.ToString("F2")</td>
+                                <td>@preco.DataRegisto.ToString("dd/MM/yyyy")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <h4>Histórico de Preços</h4>
+                @if (precoComparacao.HistoricoPrecos?.Any() == true)
+                {
+                    <canvas id="precoChart" width="400" height="200"></canvas>
+                }
+                else
+                {
+                    <p>Sem histórico de preços para as lojas selecionadas.</p>
+                }
+            }
+            else
+            {
+                <p>Sem preços registados para este produto nas lojas selecionadas.</p>
+            }
+        }
+        else
+        {
+            <p class="mt-3">Por favor, selecione duas lojas para comparar os preços.</p>
+        }
+    }
+}
+
+@code {
+    private List<Produto> produtos = new List<Produto>();
+    private int produtoId;
+    private int lojaId1;
+    private int lojaId2;
+    private List<LojaDTO> lojasDisponiveis = new List<LojaDTO>();
+    private PrecoComparacaoDTO? precoComparacao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Console.WriteLine("[DEBUG] Carregando lista de produtos...");
+            produtos = await Http.GetFromJsonAsync<List<Produto>>("api/precos/produtos") ?? new List<Produto>();
+            Console.WriteLine($"[DEBUG] Produtos carregados: {produtos?.Count ?? 0}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Erro ao carregar produtos: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
+    private async Task OnProdutoChangedAsync(ChangeEventArgs e)
+    {
+        produtoId = int.Parse(e.Value?.ToString() ?? "0");
+        Console.WriteLine($"[DEBUG] Produto selecionado: ID {produtoId}");
+
+        if (produtoId > 0)
+        {
+            try
+            {
+                // Carrega as lojas disponíveis (sem filtrar por lojas ainda)
+                Console.WriteLine($"[DEBUG] Carregando dados para o produto {produtoId} sem filtros de loja...");
+                precoComparacao = await Http.GetFromJsonAsync<PrecoComparacaoDTO>($"api/precos/comparar/{produtoId}");
+                Console.WriteLine($"[DEBUG] Dados recebidos: NomeProduto={precoComparacao?.NomeProduto}, LojasDisponiveis={precoComparacao?.LojasDisponiveis?.Count}, PrecosAtuais={precoComparacao?.PrecosAtuais?.Count}, HistoricoPrecos={precoComparacao?.HistoricoPrecos?.Count}");
+
+                lojasDisponiveis = precoComparacao?.LojasDisponiveis ?? new List<LojaDTO>();
+                lojaId1 = 0;
+                lojaId2 = 0;
+                precoComparacao = null; // Limpa os preços até as lojas serem selecionadas
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Erro ao carregar dados do produto {produtoId}: {ex.Message}\n{ex.StackTrace}");
+                precoComparacao = null;
+                lojasDisponiveis = new List<LojaDTO>();
+            }
+        }
+        else
+        {
+            precoComparacao = null;
+            lojasDisponiveis = new List<LojaDTO>();
+            lojaId1 = 0;
+            lojaId2 = 0;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task AtualizarComparacao()
+    {
+        if (produtoId > 0 && lojaId1 > 0 && lojaId2 > 0)
+        {
+            try
+            {
+                Console.WriteLine($"[DEBUG] Carregando dados para o produto {produtoId} com lojas {lojaId1} e {lojaId2}...");
+                precoComparacao = await Http.GetFromJsonAsync<PrecoComparacaoDTO>($"api/precos/comparar/{produtoId}?lojaId1={lojaId1}&lojaId2={lojaId2}");
+                Console.WriteLine($"[DEBUG] Dados recebidos: NomeProduto={precoComparacao?.NomeProduto}, PrecosAtuais={precoComparacao?.PrecosAtuais?.Count}, HistoricoPrecos={precoComparacao?.HistoricoPrecos?.Count}");
+
+                if (precoComparacao?.HistoricoPrecos?.Any() == true)
+                {
+                    // Agrupa os preços por loja
+                    var lojas = precoComparacao.HistoricoPrecos
+                        .GroupBy(h => h.NomeLoja)
+                        .Select(g => new
+                        {
+                            NomeLoja = g.Key,
+                            Precos = g.OrderBy(h => h.DataRegisto).ToList()
+                        })
+                        .ToList();
+
+                    // Prepara os dados para o gráfico
+                    var labels = precoComparacao.HistoricoPrecos
+                        .Select(h => h.DataRegisto.ToString("dd/MM/yyyy"))
+                        .Distinct()
+                        .OrderBy(d => DateTime.ParseExact(d, "dd/MM/yyyy", null))
+                        .ToList();
+
+                    var datasets = lojas.Select(loja => new
+                    {
+                        label = loja.NomeLoja,
+                        data = labels.Select(label => loja.Precos
+                            .Where(p => p.DataRegisto.ToString("dd/MM/yyyy") == label)
+                            .Select(p => p.Preco)
+                            .FirstOrDefault())
+                            .ToList(),
+                        borderColor = GetRandomColor(),
+                        fill = false
+                    }).ToList();
+
+                    Console.WriteLine($"[DEBUG] Dados do gráfico: Labels={labels.Count}, Datasets={datasets.Count}");
+                    await JSRuntime.InvokeVoidAsync("renderChart", "precoChart", labels, datasets);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Erro ao carregar dados para comparação: {ex.Message}\n{ex.StackTrace}");
+                precoComparacao = null;
+            }
+        }
+        else
+        {
+            precoComparacao = null;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnLoja2Changed(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int value))
+        {
+            lojaId2 = value;
+            await AtualizarComparacao();
+        }
+    }
+
+    private string GetRandomColor()
+    {
+        Random random = new Random();
+        return $"rgb({random.Next(256)}, {random.Next(256)}, {random.Next(256)})";
+    }
+
+    public class Produto
+    {
+        public int ProdutoId { get; set; }
+        public string? Nome { get; set; }
+        public string? Marca { get; set; }
+    }
+
+    public class PrecoComparacaoDTO
+    {
+        public string? NomeProduto { get; set; }
+        public List<LojaDTO>? LojasDisponiveis { get; set; }
+        public List<PrecoAtualDTO>? PrecosAtuais { get; set; }
+        public List<HistoricoPrecoDTO>? HistoricoPrecos { get; set; }
+    }
+
+    public class LojaDTO
+    {
+        public int LojaId { get; set; }
+        public string? Nome { get; set; }
+    }
+
+    public class PrecoAtualDTO
+    {
+        public string? NomeLoja { get; set; }
+        public decimal Preco { get; set; }
+        public DateTime DataRegisto { get; set; }
+    }
+
+    public class HistoricoPrecoDTO
+    {
+        public string? NomeLoja { get; set; }
+        public decimal Preco { get; set; }
+        public DateTime DataRegisto { get; set; }
+    }
+}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    window.renderChart = (canvasId, labels, datasets) => {
+        console.log("[DEBUG] Renderizando gráfico com canvasId:", canvasId);
+        console.log("[DEBUG] Labels:", labels);
+        console.log("[DEBUG] Datasets:", datasets);
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        if (!ctx) {
+            console.error("[ERROR] Elemento canvas não encontrado:", canvasId);
+            return;
+        }
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets.map(ds => ({
+                    label: ds.label,
+                    data: ds.data,
+                    borderColor: ds.borderColor,
+                    fill: ds.fill,
+                    tension: 0.1
+                }))
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Data'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Preço (€)'
+                        },
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                }
+            }
+        });
+    };
+</script>

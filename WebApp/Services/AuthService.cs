@@ -32,7 +32,7 @@ namespace WebApp.Services
         {
             if (string.IsNullOrEmpty(Token))
                 return false;
-            
+
             try
             {
                 var handler = new JwtSecurityTokenHandler();

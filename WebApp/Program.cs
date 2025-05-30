@@ -2,7 +2,8 @@ using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.Configuration; // Necessário para IConfiguration
+using Microsoft.Extensions.Configuration;
+using Microsoft.JSInterop;
 using WebApp;
 using WebApp.Services;
 
@@ -49,6 +50,18 @@ builder.Services.AddSingleton(sp =>
         })
         .WithAutomaticReconnect()
         .Build();
+
+    // Listener para notificações de mudança de preço
+    hubConnection.On<int, decimal>("PriceChanged", async (produtoId, preco) =>
+    {
+        using (var scope = sp.CreateScope())
+        {
+            var jsRuntime = scope.ServiceProvider.GetRequiredService<IJSRuntime>();
+            await jsRuntime.InvokeVoidAsync("alert", $"Preço do produto {produtoId} mudou para {preco:C}!");
+            Console.WriteLine($"[DEBUG] Preço do produto {produtoId} mudou para {preco:C}");
+        }
+    });
+
     return hubConnection;
 });
 

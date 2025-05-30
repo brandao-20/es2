@@ -40,8 +40,8 @@ else
         {
             <div class="alert alert-info mt-3">
                 <h5>Supermercado Selecionado:</h5>
-                <p><strong>Nome:</strong> @selectedSupermarket.Name</p>
-                <p><strong>Endereço:</strong> @selectedSupermarket.Address</p>
+                <p><strong>Nome:</strong> @(selectedSupermarket.Name ?? "Não disponível")</p>
+                <p><strong>Endereço:</strong> @(selectedSupermarket.Address ?? "Não disponível")</p>
                 <p><strong>Latitude:</strong> @selectedSupermarket.Lat</p>
                 <p><strong>Longitude:</strong> @selectedSupermarket.Lng</p>
                 <button class="btn btn-primary" @onclick="HandleSubmit">Guardar Loja</button>
@@ -74,7 +74,6 @@ else
     private SupermarketModel? selectedSupermarket;
     private DotNetObjectReference<NewStore>? _objectRef;
     private string? currentMapElementId;
-    private (double lat, double lng)? userLocation;
     private List<Loja> existingStores = new List<Loja>();
 
     // Propriedades para controlar o popup
@@ -93,13 +92,13 @@ else
         _objectRef = DotNetObjectReference.Create(this);
 
         // Carrega as lojas existentes para verificação de duplicatas
-        await LoadExistingStores();
+        await LoadExistingStoresAsync();
 
         // Tenta obter a localização atual do usuário
-        await GetUserLocation();
+        await GetUserLocationAsync();
     }
 
-    private async Task LoadExistingStores()
+    private async Task LoadExistingStoresAsync()
     {
         try
         {
@@ -121,7 +120,7 @@ else
         }
     }
 
-    private async Task GetUserLocation()
+    private async Task GetUserLocationAsync()
     {
         try
         {
@@ -131,8 +130,8 @@ else
                 await JSRuntime.InvokeVoidAsync("mapsInterop.loadGoogleMaps", apiKey);
                 googleMapsLoaded = true;
             }
-            await WaitForGoogleMaps();
-            await WaitForMapsInterop();
+            await WaitForGoogleMapsAsync();
+            await WaitForMapsInteropAsync();
 
             // Obtém a localização do usuário
             var location = await JSRuntime.InvokeAsync<GeolocationResult>("mapsInterop.getUserLocation");
@@ -170,7 +169,7 @@ else
         }
     }
 
-    private async Task WaitForGoogleMaps()
+    private async Task WaitForGoogleMapsAsync()
     {
         int attempts = 0;
         const int maxAttempts = 200;
@@ -196,7 +195,7 @@ else
         throw new Exception("Timeout: Google Maps API não carregou após 20 segundos.");
     }
 
-    private async Task WaitForMapsInterop()
+    private async Task WaitForMapsInteropAsync()
     {
         int attempts = 0;
         const int maxAttempts = 200;

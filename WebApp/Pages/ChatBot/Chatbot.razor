@@ -64,6 +64,15 @@
         }
     }
 
+    protected override void OnInitialized()
+    {
+        // Log de depuração para verificar quando o chatbot é renderizado
+        var currentPath = Navigation.Uri;
+        var baseUri = Navigation.BaseUri;
+        var relativePath = currentPath.Replace(baseUri, "").TrimEnd('/').ToLower();
+        Console.WriteLine($"[DEBUG] Chatbot - Relative Path: {relativePath}, IsLoggedIn: {AuthService.IsLoggedIn}, Role: {AuthService.Role}");
+    }
+
     private async Task ToggleChat()
     {
         _isChatOpen = !_isChatOpen;

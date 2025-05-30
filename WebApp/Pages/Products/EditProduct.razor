@@ -7,6 +7,21 @@
 
 <PageTitle>Editar Produto</PageTitle>
 
+<style>
+    .subcategory-container {
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .subcategory-container.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .form-select {
+        max-width: 300px;
+    }
+</style>
+
 @if (!AuthService.IsAdmin && !AuthService.IsManager)
 {
     <p>Você não tem permissão para editar produtos.</p>
@@ -46,25 +61,41 @@ else
             <label>Descrição:</label>
             <InputText class="form-control" @bind-Value="produto.Descricao" />
         </div>
-
         <div class="mb-3">
             <label>Categoria:</label>
-            @if (categorias == null || categorias.Count == 0)
+            @if (!parentCategorias.Any())
             {
                 <p class="text-danger">Nenhuma categoria disponível. Por favor, crie uma categoria primeiro.</p>
             }
             else
             {
-                <select class="form-select" @bind="produto.CategoriaId">
-                    @foreach (var cat in categorias)
+                <select class="form-select" @bind="selectedParentCategoriaId" @bind:event="onchange">
+                    @foreach (var cat in parentCategorias)
                     {
                         <option value="@cat.CategoriaId">@cat.Nome</option>
                     }
                 </select>
             }
         </div>
-
-        <button type="submit" class="btn btn-primary" disabled="@(categorias == null || categorias.Count == 0)">Guardar Alterações</button>
+        @if (subCategorias.Any())
+        {
+            <div class="mb-3 subcategory-container visible">
+                <label>Subcategoria:</label>
+                <select class="form-select" @bind="selectedSubCategoriaId">
+                    <option value="0">Nenhuma subcategoria</option>
+                    @foreach (var subCat in subCategorias)
+                    {
+                        <option value="@subCat.CategoriaId">@subCat.NomeExibicao</option>
+                    }
+                </select>
+                @if (selectedSubCategoriaId != 0)
+                {
+                    var selectedSubCat = subCategorias.FirstOrDefault(c => c.CategoriaId == selectedSubCategoriaId);
+                    <p class="mt-2 text-muted">Subcategoria selecionada: @(selectedSubCat?.NomeExibicao?.TrimStart(' ', '└') ?? "Desconhecida")</p>
+                }
+            </div>
+        }
+        <button type="submit" class="btn btn-primary" disabled="@(!parentCategorias.Any())">Guardar Alterações</button>
         <button type="button" class="btn btn-secondary ms-2" @onclick="Voltar">Voltar</button>
     </EditForm>
 }
@@ -79,7 +110,11 @@ else
 @code {
     [Parameter] public int id { get; set; }
     private Produto? produto;
-    private List<Categoria>? categorias;
+    private List<Categoria> categorias = new();
+    private List<Categoria> parentCategorias = new();
+    private List<CategoriaSubcategorias> subCategorias = new();
+    private int selectedParentCategoriaId = 0;
+    private int selectedSubCategoriaId = 0;
     private bool isInitialized = false;
     private bool shouldRedirect = false;
     private bool showPopup = false;
@@ -113,16 +148,20 @@ else
                     if (apiResponse?.Success == true)
                     {
                         categorias = apiResponse.Data ?? new List<Categoria>();
+                        parentCategorias = categorias.Where(c => c.ParentId == null).OrderBy(c => c.Nome).ToList();
+                        Console.WriteLine($"[DEBUG] Categorias pai carregadas: {parentCategorias.Count}");
+                        foreach (var cat in parentCategorias)
+                        {
+                            Console.WriteLine($"[DEBUG] Categoria pai: {cat.Nome}, Subcategorias: {(cat.SubCategorias != null ? cat.SubCategorias.Count : 0)}");
+                        }
                     }
                     else
                     {
-                        categorias = new List<Categoria>();
                         ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
                     }
                 }
                 else
                 {
-                    categorias = new List<Categoria>();
                     ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
 
@@ -138,6 +177,40 @@ else
                         {
                             produto.CategoriaId = produto.Categoria.CategoriaId;
                             produto.Categoria = null;
+                        }
+
+                        // Determina a categoria pai e subcategoria do produto
+                        var categoriaProduto = FindCategoriaById(categorias, produto.CategoriaId);
+                        if (categoriaProduto != null)
+                        {
+                            if (categoriaProduto.ParentId == null)
+                            {
+                                selectedParentCategoriaId = categoriaProduto.CategoriaId;
+                                selectedSubCategoriaId = 0;
+                            }
+                            else
+                            {
+                                selectedParentCategoriaId = categoriaProduto.ParentId ?? 0;
+                                selectedSubCategoriaId = categoriaProduto.CategoriaId;
+                            }
+
+                            // Carrega as subcategorias da categoria pai
+                            var parentCategoria = categorias.FirstOrDefault(c => c.CategoriaId == selectedParentCategoriaId);
+                            if (parentCategoria != null && parentCategoria.SubCategorias?.Any() == true)
+                            {
+                                subCategorias = CategoriaSubcategorias.Achatadas(parentCategoria.SubCategorias);
+                                Console.WriteLine($"[DEBUG] Subcategorias achatadas para edição: {subCategorias.Count}");
+                                foreach (var subCat in subCategorias)
+                                {
+                                    Console.WriteLine($"[DEBUG] Subcategoria: {subCat.NomeExibicao}");
+                                }
+                            }
+                        }
+                        else if (parentCategorias.Any())
+                        {
+                            // Se a categoria do produto não for encontrada, seleciona a primeira categoria pai
+                            selectedParentCategoriaId = parentCategorias.First().CategoriaId;
+                            await OnParentCategoriaChanged(new ChangeEventArgs { Value = selectedParentCategoriaId.ToString() });
                         }
                     }
                     else
@@ -155,7 +228,6 @@ else
             catch (Exception ex)
             {
                 produto = null;
-                categorias = new List<Categoria>();
                 ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
             }
             finally
@@ -164,6 +236,54 @@ else
                 await InvokeAsync(StateHasChanged);
             }
         }
+    }
+
+    private Categoria? FindCategoriaById(List<Categoria> cats, int categoriaId)
+    {
+        foreach (var cat in cats)
+        {
+            if (cat.CategoriaId == categoriaId)
+                return cat;
+            if (cat.SubCategorias?.Any() == true)
+            {
+                var found = FindCategoriaById(cat.SubCategorias, categoriaId);
+                if (found != null)
+                    return found;
+            }
+        }
+        return null;
+    }
+
+    private async Task OnParentCategoriaChanged(ChangeEventArgs e)
+    {
+        selectedParentCategoriaId = int.Parse(e.Value?.ToString() ?? "0");
+        selectedSubCategoriaId = 0; // Resetar a subcategoria ao mudar a categoria pai
+        subCategorias.Clear();
+
+        if (selectedParentCategoriaId != 0)
+        {
+            var selectedParent = categorias.FirstOrDefault(c => c.CategoriaId == selectedParentCategoriaId);
+            if (selectedParent != null)
+            {
+                Console.WriteLine($"[DEBUG] Categoria pai selecionada: {selectedParent.Nome}, Subcategorias: {(selectedParent.SubCategorias != null ? selectedParent.SubCategorias.Count : 0)}");
+                if (selectedParent.SubCategorias?.Any() == true)
+                {
+                    subCategorias = CategoriaSubcategorias.Achatadas(selectedParent.SubCategorias);
+                    Console.WriteLine($"[DEBUG] Subcategorias achatadas: {subCategorias.Count}");
+                    foreach (var subCat in subCategorias)
+                    {
+                        Console.WriteLine($"[DEBUG] Subcategoria: {subCat.NomeExibicao}");
+                    }
+                }
+                else
+                {
+                    subCategorias.Clear();
+                    Console.WriteLine("[DEBUG] Nenhuma subcategoria disponível para esta categoria pai.");
+                }
+            }
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task HandleSubmit()
@@ -182,7 +302,7 @@ else
             return;
         }
 
-        if (categorias == null || categorias.Count == 0 || produto.CategoriaId <= 0)
+        if (selectedParentCategoriaId == 0)
         {
             ShowPopup("Selecione uma categoria válida.", MessagePopup.MessageType.Error);
             return;
@@ -190,6 +310,8 @@ else
 
         try
         {
+            // Usa a subcategoria se selecionada, caso contrário usa a categoria pai
+            produto.CategoriaId = selectedSubCategoriaId != 0 ? selectedSubCategoriaId : selectedParentCategoriaId;
             produto.Categoria = null;
 
             Console.WriteLine($"[DEBUG] Atualizando produto: ID={produto.ProdutoId}, Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
