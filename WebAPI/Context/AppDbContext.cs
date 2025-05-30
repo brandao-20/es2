@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using WebAPI.Entities;
+using WebAPI.Helpers;
 
 namespace WebAPI.Context
 {
@@ -24,10 +25,75 @@ namespace WebAPI.Context
         public virtual DbSet<Utilizador> Utilizadores { get; set; }
         public virtual DbSet<Mensagem> Mensagens { get; set; }
         public virtual DbSet<Relatorio> Relatorios { get; set; }
+        public virtual DbSet<Comentario> Comentarios { get; set; }
+        public virtual DbSet<Favorito> Favoritos { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code.
-            => optionsBuilder.UseNpgsql("Host=localhost;Database=ES2;Username=postgres;Password=batata");
+                optionsBuilder.UseNpgsql("Host=localhost;Database=ES2;Username=postgres;Password=batata");
+            }
+        }
+
+        public void SeedInitialData()
+        {
+            try
+            {
+                // Verifica e cria os TipoUtilizador se não existirem
+                string[] requiredTypes = { "ADMIN", "USER", "USER_MANAGER" };
+                foreach (var type in requiredTypes)
+                {
+                    if (!TipoUtilizadors.Any(t => t.Tipo == type))
+                    {
+                        TipoUtilizadors.Add(new TipoUtilizador { Tipo = type });
+                    }
+                }
+
+                // Garante que os TipoUtilizador sejam salvos antes de criar o utilizador Admin
+                if (requiredTypes.Any(type => !TipoUtilizadors.Any(t => t.Tipo == type)))
+                {
+                    SaveChanges();
+                    Console.WriteLine("[DEBUG] Tipos de Utilizador criados ou encontrados com sucesso.");
+                }
+
+                // Verifica se já existe um utilizador Admin
+                if (!Utilizadores.Any(u => u.TipoUtilizador.Tipo == "ADMIN"))
+                {
+                    var adminType = TipoUtilizadors.First(t => t.Tipo == "ADMIN");
+                    var adminPasswordHash = PasswordHelper.HashPassword("admin123");
+                    Utilizadores.Add(new Utilizador
+                    {
+                        UtilizadorId = Utilizadores.Any() ? Utilizadores.Max(u => u.UtilizadorId) + 1 : 1,
+                        Username = "admin",
+                        Email = "admin@example.com",
+                        Password = adminPasswordHash,
+                        TipoUtilizadorId = adminType.TipoUtilizadorId,
+                        DataCriacao = DateTime.UtcNow
+                    });
+                    SaveChanges();
+                    Console.WriteLine("[DEBUG] Utilizador Admin criado com sucesso: admin/admin123");
+                }
+                else
+                {
+                    Console.WriteLine("[DEBUG] Já existe um utilizador Admin. Nenhum novo Admin foi criado.");
+                }
+
+                // Verifica se há mais TipoUtilizador do que o esperado
+                var existingTypes = TipoUtilizadors.ToList();
+                if (existingTypes.Count > requiredTypes.Length)
+                {
+                    Console.WriteLine($"[WARNING] Existem {existingTypes.Count} tipos de utilizador, mas apenas {requiredTypes.Length} são esperados: {string.Join(", ", requiredTypes)}.");
+                    Console.WriteLine($"[WARNING] Tipos atuais: {string.Join(", ", existingTypes.Select(t => $"{t.Tipo} (ID: {t.TipoUtilizadorId})"))}.");
+                    Console.WriteLine("[WARNING] Considere limpar os tipos duplicados manualmente no PostgreSQL.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Erro ao realizar o seeding inicial: {ex.Message}");
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -36,6 +102,10 @@ namespace WebAPI.Context
                 entity.HasKey(e => e.CategoriaId).HasName("Categorias_pkey");
                 entity.ToTable("Categorias");
                 entity.Property(e => e.Nome).HasMaxLength(100);
+                entity.HasOne(c => c.Parent)
+                    .WithMany(c => c.SubCategorias)
+                    .HasForeignKey(c => c.ParentId)
+                    .HasConstraintName("FK_Categorias_Parent");
             });
 
             modelBuilder.Entity<Localizacao>(entity =>
@@ -167,6 +237,40 @@ namespace WebAPI.Context
                     .HasForeignKey(d => d.CategoriaId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_Relatorios_Categorias");
+            });
+
+            modelBuilder.Entity<Comentario>(entity =>
+            {
+                entity.HasKey(e => e.ComentarioId).HasName("Comentarios_pkey");
+                entity.ToTable("Comentarios");
+                entity.Property(e => e.Conteudo).HasMaxLength(1000);
+                entity.Property(e => e.DataCriacao).HasColumnType("timestamp with time zone");
+                entity.HasOne(c => c.RegistoPreco)
+                    .WithMany(r => r.Comentarios)
+                    .HasForeignKey(c => c.RegistoPrecoId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_Comentarios_RegistosPrecos");
+                entity.HasOne(c => c.Utilizador)
+                    .WithMany()
+                    .HasForeignKey(c => c.UtilizadorId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_Comentarios_Utilizadores");
+            });
+
+            modelBuilder.Entity<Favorito>(entity =>
+            {
+                entity.HasKey(e => e.FavoritoId).HasName("Favoritos_pkey");
+                entity.ToTable("Favoritos");
+                entity.HasOne(f => f.Utilizador)
+                    .WithMany(u => u.Favoritos)
+                    .HasForeignKey(f => f.UtilizadorId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_Favoritos_Utilizadores");
+                entity.HasOne(f => f.Produto)
+                    .WithMany(p => p.Favoritos)
+                    .HasForeignKey(f => f.ProdutoId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_Favoritos_Produtos");
             });
 
             OnModelCreatingPartial(modelBuilder);

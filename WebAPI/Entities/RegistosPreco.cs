@@ -28,4 +28,6 @@ public partial class RegistosPreco
     public virtual TipoAcao? TipoAcao { get; set; } = null!;
 
     public virtual Utilizador? Utilizador { get; set; } = null!;
+
+    public virtual List<Comentario> Comentarios { get; set; } = new();
 }

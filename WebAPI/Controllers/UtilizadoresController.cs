@@ -27,7 +27,14 @@ namespace WebAPI.Controllers
         public async Task<ActionResult<ApiResponse<CheckAvailabilityResponse>>> CheckAvailability([FromQuery] string username, [FromQuery] string email)
         {
             if (string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(email))
-                return BadRequest(ApiResponse<CheckAvailabilityResponse>.ErrorResponse("Pelo menos um parâmetro (username ou email) deve ser fornecido.", "INVALID_PARAMETERS"));
+                return BadRequest(new ApiResponse<CheckAvailabilityResponse>
+                {
+                    Success = false,
+                    Message = "Pelo menos um parâmetro (username ou email) deve ser fornecido.",
+                    ErrorCode = "INVALID_PARAMETERS",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             bool usernameExists = false;
             bool emailExists = false;
@@ -50,7 +57,13 @@ namespace WebAPI.Controllers
                 EmailExists = emailExists
             };
 
-            return Ok(ApiResponse<CheckAvailabilityResponse>.SuccessResponse(response, "Verificação concluída."));
+            return Ok(new ApiResponse<CheckAvailabilityResponse>
+            {
+                Success = true,
+                Message = "Verificação concluída.",
+                StatusCode = 200,
+                Data = response
+            });
         }
 
         [HttpPost("register")]
@@ -59,11 +72,25 @@ namespace WebAPI.Controllers
             // Verificar duplicatas
             var usernameExists = await _utilizadorRepository.FindAsync(u => u.Username.ToLower() == utilizador.Username.ToLower());
             if (usernameExists.Any())
-                return BadRequest(ApiResponse<Utilizador>.ErrorResponse("O nome de utilizador já está em uso.", "DUPLICATE_USERNAME"));
+                return BadRequest(new ApiResponse<Utilizador>
+                {
+                    Success = false,
+                    Message = "O nome de utilizador já está em uso.",
+                    ErrorCode = "DUPLICATE_USERNAME",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             var emailExists = await _utilizadorRepository.FindAsync(u => u.Email.ToLower() == utilizador.Email.ToLower());
             if (emailExists.Any())
-                return BadRequest(ApiResponse<Utilizador>.ErrorResponse("O email já está em uso.", "DUPLICATE_EMAIL"));
+                return BadRequest(new ApiResponse<Utilizador>
+                {
+                    Success = false,
+                    Message = "O email já está em uso.",
+                    ErrorCode = "DUPLICATE_EMAIL",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             // Definir o tipo de utilizador
             var tiposExistentes = await _utilizadorRepository.GetAllAsync();
@@ -92,7 +119,13 @@ namespace WebAPI.Controllers
             utilizador.DataCriacao = DateTime.UtcNow;
             await _utilizadorRepository.AddAsync(utilizador);
 
-            return CreatedAtAction(nameof(GetById), new { id = utilizador.UtilizadorId }, ApiResponse<Utilizador>.SuccessResponse(utilizador, "Utilizador criado com sucesso."));
+            return CreatedAtAction(nameof(GetById), new { id = utilizador.UtilizadorId }, new ApiResponse<Utilizador>
+            {
+                Success = true,
+                Message = "Utilizador criado com sucesso.",
+                StatusCode = 201,
+                Data = utilizador
+            });
         }
 
         [HttpGet("{id:int}")]
@@ -146,14 +179,34 @@ namespace WebAPI.Controllers
             var userIdClaim = User.FindFirst("utilizadorId");
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int currentUserId) && id == currentUserId)
             {
-                return BadRequest(ApiResponse<object>.ErrorResponse("Não é possível remover a si próprio por este endpoint.", "INVALID_ACTION"));
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Não é possível remover a si próprio por este endpoint.",
+                    ErrorCode = "INVALID_ACTION",
+                    StatusCode = 400,
+                    Data = null
+                });
             }
 
             var user = await _utilizadorRepository.GetByIdAsync(id);
-            if (user == null) return NotFound(ApiResponse<object>.ErrorResponse("Utilizador não encontrado.", "NOT_FOUND"));
+            if (user == null) return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Utilizador não encontrado.",
+                ErrorCode = "NOT_FOUND",
+                StatusCode = 404,
+                Data = null
+            });
 
             await _utilizadorRepository.DeleteAsync(user);
-            return Ok(ApiResponse<object>.SuccessResponse(null, "Utilizador removido com sucesso."));
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Utilizador removido com sucesso.",
+                StatusCode = 200,
+                Data = null
+            });
         }
 
         [HttpDelete("me")]
@@ -161,16 +214,43 @@ namespace WebAPI.Controllers
         public async Task<IActionResult> DeleteMyAccount()
         {
             var userIdClaim = User.FindFirst("utilizadorId");
-            if (userIdClaim == null) return Unauthorized(ApiResponse<object>.ErrorResponse("Usuário não identificado.", "UNAUTHORIZED"));
+            if (userIdClaim == null) return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuário não identificado.",
+                ErrorCode = "UNAUTHORIZED",
+                StatusCode = 401,
+                Data = null
+            });
 
             if (!int.TryParse(userIdClaim.Value, out int userId))
-                return BadRequest(ApiResponse<object>.ErrorResponse("ID do usuário inválido.", "INVALID_USER_ID"));
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "ID do usuário inválido.",
+                    ErrorCode = "INVALID_USER_ID",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             var user = await _utilizadorRepository.GetByIdAsync(userId);
-            if (user == null) return NotFound(ApiResponse<object>.ErrorResponse("Utilizador não encontrado.", "NOT_FOUND"));
+            if (user == null) return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Utilizador não encontrado.",
+                ErrorCode = "NOT_FOUND",
+                StatusCode = 404,
+                Data = null
+            });
 
             await _utilizadorRepository.DeleteAsync(user);
-            return Ok(ApiResponse<object>.SuccessResponse(null, "Conta removida com sucesso."));
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Conta removida com sucesso.",
+                StatusCode = 200,
+                Data = null
+            });
         }
 
         [HttpPost("admincreate")]
@@ -180,11 +260,25 @@ namespace WebAPI.Controllers
             // Verificar duplicatas
             var usernameExists = await _utilizadorRepository.FindAsync(u => u.Username.ToLower() == dto.Username.ToLower());
             if (usernameExists.Any())
-                return BadRequest(ApiResponse<Utilizador>.ErrorResponse("O nome de utilizador já está em uso.", "DUPLICATE_USERNAME"));
+                return BadRequest(new ApiResponse<Utilizador>
+                {
+                    Success = false,
+                    Message = "O nome de utilizador já está em uso.",
+                    ErrorCode = "DUPLICATE_USERNAME",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             var emailExists = await _utilizadorRepository.FindAsync(u => u.Email.ToLower() == dto.Email.ToLower());
             if (emailExists.Any())
-                return BadRequest(ApiResponse<Utilizador>.ErrorResponse("O email já está em uso.", "DUPLICATE_EMAIL"));
+                return BadRequest(new ApiResponse<Utilizador>
+                {
+                    Success = false,
+                    Message = "O email já está em uso.",
+                    ErrorCode = "DUPLICATE_EMAIL",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             var roleDb = dto.Tipo.ToUpper();
             var tipoEntity = (await _tipoUtilizadorRepository.FindAsync(t => t.Tipo == roleDb)).FirstOrDefault();
@@ -204,7 +298,13 @@ namespace WebAPI.Controllers
             };
 
             await _utilizadorRepository.AddAsync(user);
-            return Ok(ApiResponse<Utilizador>.SuccessResponse(user, "Utilizador criado com sucesso."));
+            return Ok(new ApiResponse<Utilizador>
+            {
+                Success = true,
+                Message = "Utilizador criado com sucesso.",
+                StatusCode = 200,
+                Data = user
+            });
         }
 
         [HttpGet("adminget/{id:int}")]
@@ -212,7 +312,14 @@ namespace WebAPI.Controllers
         public async Task<ActionResult<ApiResponse<UserDto>>> AdminGetUser(int id)
         {
             var user = await _utilizadorRepository.GetByIdWithDetailsAsync(id);
-            if (user == null) return NotFound(ApiResponse<UserDto>.ErrorResponse("Utilizador não encontrado.", "NOT_FOUND"));
+            if (user == null) return NotFound(new ApiResponse<UserDto>
+            {
+                Success = false,
+                Message = "Utilizador não encontrado.",
+                ErrorCode = "NOT_FOUND",
+                StatusCode = 404,
+                Data = null
+            });
 
             var roleDb = user.TipoUtilizador?.Tipo ?? "USER";
             var dto = new UserDto
@@ -222,7 +329,13 @@ namespace WebAPI.Controllers
                 Email = user.Email,
                 Tipo = NormalizeRoleFromDb(roleDb)
             };
-            return Ok(ApiResponse<UserDto>.SuccessResponse(dto, "Utilizador obtido com sucesso."));
+            return Ok(new ApiResponse<UserDto>
+            {
+                Success = true,
+                Message = "Utilizador obtido com sucesso.",
+                StatusCode = 200,
+                Data = dto
+            });
         }
 
         [HttpPut("adminedit/{id:int}")]
@@ -230,16 +343,37 @@ namespace WebAPI.Controllers
         public async Task<IActionResult> AdminEditUser(int id, UserDto dto)
         {
             var user = await _utilizadorRepository.GetByIdAsync(id);
-            if (user == null) return NotFound(ApiResponse<object>.ErrorResponse("Utilizador não encontrado.", "NOT_FOUND"));
+            if (user == null) return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Utilizador não encontrado.",
+                ErrorCode = "NOT_FOUND",
+                StatusCode = 404,
+                Data = null
+            });
 
             // Verificar duplicatas (exceto para o próprio utilizador)
             var usernameExists = await _utilizadorRepository.FindAsync(u => u.Username.ToLower() == dto.Username.ToLower() && u.UtilizadorId != id);
             if (usernameExists.Any())
-                return BadRequest(ApiResponse<object>.ErrorResponse("O nome de utilizador já está em uso.", "DUPLICATE_USERNAME"));
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "O nome de utilizador já está em uso.",
+                    ErrorCode = "DUPLICATE_USERNAME",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             var emailExists = await _utilizadorRepository.FindAsync(u => u.Email.ToLower() == dto.Email.ToLower() && u.UtilizadorId != id);
             if (emailExists.Any())
-                return BadRequest(ApiResponse<object>.ErrorResponse("O email já está em uso.", "DUPLICATE_EMAIL"));
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "O email já está em uso.",
+                    ErrorCode = "DUPLICATE_EMAIL",
+                    StatusCode = 400,
+                    Data = null
+                });
 
             user.Username = dto.Username;
             user.Email = dto.Email;
@@ -259,7 +393,31 @@ namespace WebAPI.Controllers
             user.TipoUtilizadorId = tipoEntity.TipoUtilizadorId;
 
             await _utilizadorRepository.UpdateAsync(user);
-            return Ok(ApiResponse<object>.SuccessResponse(null, "Utilizador atualizado com sucesso."));
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Utilizador atualizado com sucesso.",
+                StatusCode = 200,
+                Data = null
+            });
+        }
+
+        [HttpGet("ranking")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ApiResponse<IEnumerable<object>>>> GetRanking()
+        {
+            var ranking = await _utilizadorRepository.GetAllAsync();
+            var rankingData = ranking
+                .Select(u => new { u.UtilizadorId, u.Username, u.Pontos })
+                .OrderByDescending(u => u.Pontos)
+                .ToList();
+            return Ok(new ApiResponse<IEnumerable<object>>
+            {
+                Success = true,
+                Message = "Ranking obtido com sucesso.",
+                StatusCode = 200,
+                Data = rankingData
+            });
         }
 
         private string NormalizeRoleFromDb(string roleDb)

@@ -7,7 +7,7 @@ namespace WebAPI.Entities
         public int ProdutoId { get; set; }
         public Produto Produto { get; set; }
         public string NomeLoja { get; set; }
-        public int LojaId { get; set; }
+            public int LojaId { get; set; }
         public Loja Loja { get; set; }
         public decimal Preco { get; set; }
         public DateTime Data { get; set; }

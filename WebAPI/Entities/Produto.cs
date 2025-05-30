@@ -20,4 +20,6 @@ public partial class Produto
 
     [JsonIgnore]
     public virtual ICollection<RegistosPreco> RegistosPrecos { get; set; } = new List<RegistosPreco>();
+
+    public virtual List<Favorito> Favoritos { get; set; } = new();
 }

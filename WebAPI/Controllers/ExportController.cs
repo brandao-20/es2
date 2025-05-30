@@ -112,5 +112,24 @@ namespace WebAPI.Controllers
             var pdfBytes = memoryStream.ToArray();
             return File(pdfBytes, "application/pdf", "relatorio_produtos.pdf");
         }
+
+        // Exporta Relatório Geral de Produtos em CSV
+        // Endpoint: GET /api/Export/produtos/csv
+        [HttpGet("produtos/csv")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportProdutosCsv()
+        {
+            var produtos = await _produtoRepository.GetAllWithDetailsAsync();
+            var sb = new StringBuilder();
+            sb.AppendLine("ProdutoId;Nome;Marca;Descricao;Categoria");
+
+            foreach (var p in produtos)
+            {
+                sb.AppendLine($"{p.ProdutoId};{p.Nome};{p.Marca};{p.Descricao};{p.Categoria?.Nome ?? "N/A"}");
+            }
+
+            var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return File(csvBytes, "text/csv", "relatorio_produtos.csv");
+        }
     }
 }

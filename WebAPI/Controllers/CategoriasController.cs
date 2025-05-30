@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using WebAPI.Entities;
 using WebAPI.Repositories;
 
@@ -6,6 +7,7 @@ namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class CategoriasController : ControllerBase
     {
         private readonly ICategoriaRepository _categoriaRepository;
@@ -21,12 +23,14 @@ namespace WebAPI.Controllers
             try
             {
                 var categorias = await _categoriaRepository.GetAllAsync();
+                // Organizar as categorias em uma estrutura hierárquica
+                var categoriasHierarquicas = BuildCategoryHierarchy(categorias);
                 return Ok(new ApiResponse<IEnumerable<Categoria>>
                 {
                     Success = true,
                     Message = "Categorias carregadas com sucesso.",
                     StatusCode = 200,
-                    Data = categorias
+                    Data = categoriasHierarquicas
                 });
             }
             catch (Exception ex)
@@ -82,7 +86,7 @@ namespace WebAPI.Controllers
                 return StatusCode(500, new ApiResponse<Categoria>
                 {
                     Success = false,
-                    Message = $"Erro ao buscar a categoria: {ex.Message}",
+                    Message = $"Erro ao buscar a categoria com ID {id}: {ex.Message}",
                     StatusCode = 500,
                     Data = null
                 });
@@ -90,6 +94,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<Categoria>>> Create(Categoria categoria)
         {
             try
@@ -103,6 +108,21 @@ namespace WebAPI.Controllers
                         StatusCode = 400,
                         Data = null
                     });
+                }
+
+                if (categoria.ParentId.HasValue && categoria.ParentId.Value > 0)
+                {
+                    var parent = await _categoriaRepository.GetByIdAsync(categoria.ParentId.Value);
+                    if (parent == null)
+                    {
+                        return BadRequest(new ApiResponse<Categoria>
+                        {
+                            Success = false,
+                            Message = "Categoria pai não encontrada.",
+                            StatusCode = 400,
+                            Data = null
+                        });
+                    }
                 }
 
                 await _categoriaRepository.AddAsync(categoria);
@@ -127,6 +147,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<object>>> Update(int id, Categoria categoria)
         {
             try
@@ -154,6 +175,31 @@ namespace WebAPI.Controllers
                     });
                 }
 
+                if (categoria.ParentId.HasValue && categoria.ParentId.Value > 0)
+                {
+                    var parent = await _categoriaRepository.GetByIdAsync(categoria.ParentId.Value);
+                    if (parent == null)
+                    {
+                        return BadRequest(new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "Categoria pai não encontrada.",
+                            StatusCode = 400,
+                            Data = null
+                        });
+                    }
+                    if (categoria.ParentId.Value == categoria.CategoriaId)
+                    {
+                        return BadRequest(new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "Uma categoria não pode ser pai de si mesma.",
+                            StatusCode = 400,
+                            Data = null
+                        });
+                    }
+                }
+
                 await _categoriaRepository.UpdateAsync(categoria);
                 return Ok(new ApiResponse<object>
                 {
@@ -178,7 +224,7 @@ namespace WebAPI.Controllers
                 return StatusCode(500, new ApiResponse<object>
                 {
                     Success = false,
-                    Message = $"Erro ao atualizar a categoria: {ex.Message}",
+                    Message = $"Erro ao atualizar a categoria com ID {id}: {ex.Message}",
                     StatusCode = 500,
                     Data = null
                 });
@@ -186,6 +232,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
         {
             try
@@ -213,6 +260,18 @@ namespace WebAPI.Controllers
                     });
                 }
 
+                var subcategorias = await _categoriaRepository.GetAllAsync();
+                if (subcategorias.Any(c => c.ParentId == id))
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Não é possível excluir uma categoria que possui subcategorias.",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
                 await _categoriaRepository.DeleteAsync(categoria);
                 return Ok(new ApiResponse<object>
                 {
@@ -227,11 +286,21 @@ namespace WebAPI.Controllers
                 return StatusCode(500, new ApiResponse<object>
                 {
                     Success = false,
-                    Message = $"Erro ao excluir a categoria: {ex.Message}",
+                    Message = $"Erro ao excluir a categoria com ID {id}: {ex.Message}",
                     StatusCode = 500,
                     Data = null
                 });
             }
+        }
+
+        private IEnumerable<Categoria> BuildCategoryHierarchy(IEnumerable<Categoria> categorias)
+        {
+            var lookup = categorias.ToLookup(c => c.ParentId);
+            foreach (var categoria in categorias)
+            {
+                categoria.SubCategorias = lookup[categoria.CategoriaId].ToList();
+            }
+            return lookup[null];
         }
     }
 }

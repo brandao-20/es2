@@ -7,7 +7,7 @@ namespace WebAPI.Repositories
 {
     public class LojaRepository : Repository<Loja>, ILojaRepository
     {
-        private readonly AppDbContext _context;
+        private new readonly AppDbContext _context;
 
         public LojaRepository(AppDbContext context) : base(context)
         {

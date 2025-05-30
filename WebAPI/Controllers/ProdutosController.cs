@@ -34,146 +34,324 @@ namespace WebAPI.Controllers
         [HttpGet]
         public async Task<ActionResult<ApiResponse<IEnumerable<Produto>>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            try
+            {
+                if (page < 1) page = 1;
+                if (pageSize < 1) pageSize = 5;
 
-            _logger.LogInformation($"[DEBUG] Obtendo produtos - Página: {page}, Tamanho da página: {pageSize}");
+                _logger.LogInformation($"[DEBUG] Obtendo produtos - Página: {page}, Tamanho da página: {pageSize}");
 
-            var totalItems = await _produtoRepository.CountAsync();
-            var skip = (page - 1) * pageSize;
-            var produtos = await _produtoRepository.GetPagedWithDetailsAsync(skip, pageSize);
+                var totalItems = await _produtoRepository.CountAsync();
+                var skip = (page - 1) * pageSize;
+                var produtos = await _produtoRepository.GetPagedWithDetailsAsync(skip, pageSize);
 
-            Response.Headers["X-Total-Count"] = totalItems.ToString();
-            return Ok(ApiResponse<IEnumerable<Produto>>.SuccessResponse(produtos, "Produtos obtidos com sucesso."));
+                Response.Headers["X-Total-Count"] = totalItems.ToString();
+                return Ok(new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = true,
+                    Message = "Produtos obtidos com sucesso.",
+                    StatusCode = 200,
+                    Data = produtos
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[ERROR] Erro ao obter produtos - Página: {Page}, Tamanho da página: {PageSize}", page, pageSize);
+                return StatusCode(500, new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = false,
+                    Message = $"Erro ao obter produtos: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<ApiResponse<Produto>>> GetById(int id)
         {
-            if (id <= 0)
+            try
             {
-                _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
-                return BadRequest(ApiResponse<Produto>.ErrorResponse("ID do produto deve ser maior que zero.", "INVALID_ID", 400));
+                if (id <= 0)
+                {
+                    _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
+                    return BadRequest(new ApiResponse<Produto>
+                    {
+                        Success = false,
+                        Message = "ID do produto deve ser maior que zero.",
+                        ErrorCode = "INVALID_ID",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                _logger.LogInformation($"[DEBUG] Obtendo produto com ID: {id}");
+
+                var produto = await _produtoRepository.GetByIdWithDetailsAsync(id);
+                if (produto == null)
+                {
+                    _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado.");
+                    return NotFound(new ApiResponse<Produto>
+                    {
+                        Success = false,
+                        Message = "Produto não encontrado.",
+                        ErrorCode = "NOT_FOUND",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                return Ok(new ApiResponse<Produto>
+                {
+                    Success = true,
+                    Message = "Produto obtido com sucesso.",
+                    StatusCode = 200,
+                    Data = produto
+                });
             }
-
-            _logger.LogInformation($"[DEBUG] Obtendo produto com ID: {id}");
-
-            var produto = await _produtoRepository.GetByIdWithDetailsAsync(id);
-            if (produto == null)
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado.");
-                return NotFound(ApiResponse<Produto>.ErrorResponse("Produto não encontrado.", "NOT_FOUND", 404));
+                _logger.LogError(ex, "[ERROR] Erro ao obter produto com ID: {Id}", id);
+                return StatusCode(500, new ApiResponse<Produto>
+                {
+                    Success = false,
+                    Message = $"Erro ao obter produto: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
-
-            return Ok(ApiResponse<Produto>.SuccessResponse(produto, "Produto obtido com sucesso."));
         }
 
         [HttpGet("{id}/credibilidade")]
         public async Task<ActionResult<ApiResponse<object>>> GetAdjustedCredibility(int id)
         {
-            if (id <= 0)
+            try
             {
-                _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
-                return BadRequest(ApiResponse<object>.ErrorResponse("ID do produto deve ser maior que zero.", "INVALID_ID", 400));
+                if (id <= 0)
+                {
+                    _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do produto deve ser maior que zero.",
+                        ErrorCode = "INVALID_ID",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                _logger.LogInformation($"[DEBUG] Calculando credibilidade ajustada para o produto com ID: {id}");
+
+                var produto = await _produtoRepository.GetByIdAsync(id);
+                if (produto == null)
+                {
+                    _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado.");
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Produto não encontrado.",
+                        ErrorCode = "NOT_FOUND",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                var registos = await _registosPrecoRepository.GetByProdutoIdAsync(id);
+                if (registos == null || !registos.Any())
+                {
+                    _logger.LogInformation($"[DEBUG] Nenhum registo de preço encontrado para o produto com ID: {id}");
+                    return Ok(new ApiResponse<object>
+                    {
+                        Success = true,
+                        Message = "Nenhum registo de preço encontrado.",
+                        StatusCode = 200,
+                        Data = new { Credibilidade = 0.0 }
+                    });
+                }
+
+                double totalCredibilidade = 0;
+                int count = 0;
+
+                foreach (var registo in registos)
+                {
+                    var meses = (DateTime.UtcNow - registo.DataRegisto).TotalDays / 30;
+                    var adjusted = (double)registo.Credibilidade - (0.1 * meses);
+                    if (adjusted < 0) adjusted = 0;
+
+                    totalCredibilidade += adjusted;
+                    count++;
+                }
+
+                var credibilidadeMedia = count > 0 ? totalCredibilidade / count : 0;
+                _logger.LogInformation($"[DEBUG] Credibilidade ajustada calculada para o produto {id}: {credibilidadeMedia}");
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Credibilidade ajustada calculada com sucesso.",
+                    StatusCode = 200,
+                    Data = new { Credibilidade = credibilidadeMedia }
+                });
             }
-
-            _logger.LogInformation($"[DEBUG] Calculando credibilidade ajustada para o produto com ID: {id}");
-
-            var produto = await _produtoRepository.GetByIdAsync(id);
-            if (produto == null)
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado.");
-                return NotFound(ApiResponse<object>.ErrorResponse("Produto não encontrado.", "NOT_FOUND", 404));
+                _logger.LogError(ex, "[ERROR] Erro ao calcular credibilidade ajustada para o produto com ID: {Id}", id);
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Erro ao calcular credibilidade: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
-
-            var registos = await _registosPrecoRepository.GetByProdutoIdAsync(id);
-            if (registos == null || !registos.Any())
-            {
-                _logger.LogInformation($"[DEBUG] Nenhum registo de preço encontrado para o produto com ID: {id}");
-                return Ok(ApiResponse<object>.SuccessResponse(new { Credibilidade = 0.0 }, "Nenhum registo de preço encontrado."));
-            }
-
-            double totalCredibilidade = 0;
-            int count = 0;
-
-            foreach (var registo in registos)
-            {
-                var meses = (DateTime.UtcNow - registo.DataRegisto).TotalDays / 30;
-                var adjusted = (double)registo.Credibilidade - (0.1 * meses);
-                if (adjusted < 0) adjusted = 0;
-
-                totalCredibilidade += adjusted;
-                count++;
-            }
-
-            var credibilidadeMedia = count > 0 ? totalCredibilidade / count : 0;
-            _logger.LogInformation($"[DEBUG] Credibilidade ajustada calculada para o produto {id}: {credibilidadeMedia}");
-            return Ok(ApiResponse<object>.SuccessResponse(new { Credibilidade = credibilidadeMedia }, "Credibilidade ajustada calculada com sucesso."));
         }
 
         [HttpPost]
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<ActionResult<ApiResponse<Produto>>> Create(Produto produto)
         {
-            _logger.LogInformation($"[DEBUG] Criando novo produto: Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
-
-            if (string.IsNullOrEmpty(produto.Nome) || string.IsNullOrWhiteSpace(produto.Marca))
+            try
             {
-                _logger.LogWarning($"[DEBUG] Nome ou Marca vazios ao criar produto.");
-                return BadRequest(ApiResponse<Produto>.ErrorResponse("Nome e Marca são obrigatórios.", "INVALID_DATA", 400));
-            }
+                _logger.LogInformation($"[DEBUG] Criando novo produto: Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
 
-            bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
-            if (!categoryExists)
+                if (string.IsNullOrEmpty(produto.Nome) || string.IsNullOrWhiteSpace(produto.Marca))
+                {
+                    _logger.LogWarning($"[DEBUG] Nome ou Marca vazios ao criar produto.");
+                    return BadRequest(new ApiResponse<Produto>
+                    {
+                        Success = false,
+                        Message = "Nome e Marca são obrigatórios.",
+                        ErrorCode = "INVALID_DATA",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
+                if (!categoryExists)
+                {
+                    _logger.LogWarning($"[DEBUG] Categoria com ID {produto.CategoriaId} não existe.");
+                    return BadRequest(new ApiResponse<Produto>
+                    {
+                        Success = false,
+                        Message = $"A categoria {produto.CategoriaId} não existe.",
+                        ErrorCode = "INVALID_CATEGORY",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                await _produtoRepository.AddAsync(produto);
+                _logger.LogInformation($"[DEBUG] Produto criado com sucesso: ID={produto.ProdutoId}");
+                return CreatedAtAction(
+                    nameof(GetById),
+                    new { id = produto.ProdutoId },
+                    new ApiResponse<Produto>
+                    {
+                        Success = true,
+                        Message = "Produto criado com sucesso.",
+                        StatusCode = 201,
+                        Data = produto
+                    }
+                );
+            }
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[DEBUG] Categoria com ID {produto.CategoriaId} não existe.");
-                return BadRequest(ApiResponse<Produto>.ErrorResponse($"A categoria {produto.CategoriaId} não existe.", "INVALID_CATEGORY", 400));
+                _logger.LogError(ex, "[ERROR] Erro ao criar produto: Nome={Nome}, Marca={Marca}, CategoriaId={CategoriaId}", produto.Nome, produto.Marca, produto.CategoriaId);
+                return StatusCode(500, new ApiResponse<Produto>
+                {
+                    Success = false,
+                    Message = $"Erro ao criar produto: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
-
-            await _produtoRepository.AddAsync(produto);
-            _logger.LogInformation($"[DEBUG] Produto criado com sucesso: ID={produto.ProdutoId}");
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = produto.ProdutoId },
-                ApiResponse<Produto>.SuccessResponse(produto, "Produto criado com sucesso.")
-            );
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<ActionResult<ApiResponse<object>>> Update(int id, Produto produto)
         {
-            if (id <= 0)
-            {
-                _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
-                return BadRequest(ApiResponse<object>.ErrorResponse("ID do produto deve ser maior que zero.", "INVALID_ID", 400));
-            }
-
-            _logger.LogInformation($"[DEBUG] Atualizando produto com ID: {id}, Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
-
-            if (id != produto.ProdutoId)
-            {
-                _logger.LogWarning($"[DEBUG] ID do produto ({produto.ProdutoId}) não coincide com o ID da URL ({id}).");
-                return BadRequest(ApiResponse<object>.ErrorResponse("ID do produto não coincide.", "INVALID_ID", 400));
-            }
-
-            bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
-            if (!categoryExists)
-            {
-                _logger.LogWarning($"[DEBUG] Categoria com ID {produto.CategoriaId} não existe.");
-                return BadRequest(ApiResponse<object>.ErrorResponse($"A categoria {produto.CategoriaId} não existe.", "INVALID_CATEGORY", 400));
-            }
-
             try
             {
+                if (id <= 0)
+                {
+                    _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do produto deve ser maior que zero.",
+                        ErrorCode = "INVALID_ID",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                _logger.LogInformation($"[DEBUG] Atualizando produto com ID: {id}, Nome={produto.Nome}, Marca={produto.Marca}, CategoriaId={produto.CategoriaId}");
+
+                if (id != produto.ProdutoId)
+                {
+                    _logger.LogWarning($"[DEBUG] ID do produto ({produto.ProdutoId}) não coincide com o ID da URL ({id}).");
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do produto não coincide.",
+                        ErrorCode = "INVALID_ID",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                bool categoryExists = await _categoriaRepository.ExistsAsync(produto.CategoriaId);
+                if (!categoryExists)
+                {
+                    _logger.LogWarning($"[DEBUG] Categoria com ID {produto.CategoriaId} não existe.");
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = $"A categoria {produto.CategoriaId} não existe.",
+                        ErrorCode = "INVALID_CATEGORY",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
                 await _produtoRepository.UpdateAsync(produto);
                 _logger.LogInformation($"[DEBUG] Produto com ID {id} atualizado com sucesso.");
-                return Ok(ApiResponse<object>.SuccessResponse(null, "Produto atualizado com sucesso."));
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Produto atualizado com sucesso.",
+                    StatusCode = 200,
+                    Data = null
+                });
             }
             catch (KeyNotFoundException)
             {
                 _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado para atualização.");
-                return NotFound(ApiResponse<object>.ErrorResponse("Produto não encontrado.", "NOT_FOUND", 404));
+                return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Produto não encontrado.",
+                    ErrorCode = "NOT_FOUND",
+                    StatusCode = 404,
+                    Data = null
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[ERROR] Erro ao atualizar produto com ID: {Id}", id);
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Erro ao atualizar produto: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
         }
 
@@ -181,24 +359,59 @@ namespace WebAPI.Controllers
         [Authorize(Roles = "UserManager,Admin")]
         public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
         {
-            if (id <= 0)
+            try
             {
-                _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
-                return BadRequest(ApiResponse<object>.ErrorResponse("ID do produto deve ser maior que zero.", "INVALID_ID", 400));
+                if (id <= 0)
+                {
+                    _logger.LogWarning($"[DEBUG] ID inválido fornecido: {id}");
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "ID do produto deve ser maior que zero.",
+                        ErrorCode = "INVALID_ID",
+                        StatusCode = 400,
+                        Data = null
+                    });
+                }
+
+                _logger.LogInformation($"[DEBUG] Deletando produto com ID: {id}");
+
+                var produto = await _produtoRepository.GetByIdAsync(id);
+                if (produto == null)
+                {
+                    _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado para deleção.");
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Produto não encontrado.",
+                        ErrorCode = "NOT_FOUND",
+                        StatusCode = 404,
+                        Data = null
+                    });
+                }
+
+                await _produtoRepository.DeleteAsync(produto);
+                _logger.LogInformation($"[DEBUG] Produto com ID {id} deletado com sucesso.");
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Produto removido com sucesso.",
+                    StatusCode = 200,
+                    Data = null
+                });
             }
-
-            _logger.LogInformation($"[DEBUG] Deletando produto com ID: {id}");
-
-            var produto = await _produtoRepository.GetByIdAsync(id);
-            if (produto == null)
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[DEBUG] Produto com ID {id} não encontrado para deleção.");
-                return NotFound(ApiResponse<object>.ErrorResponse("Produto não encontrado.", "NOT_FOUND", 404));
+                _logger.LogError(ex, "[ERROR] Erro ao deletar produto com ID: {Id}", id);
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Erro ao deletar produto: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
-
-            await _produtoRepository.DeleteAsync(produto);
-            _logger.LogInformation($"[DEBUG] Produto com ID {id} deletado com sucesso.");
-            return Ok(ApiResponse<object>.SuccessResponse(null, "Produto removido com sucesso."));
         }
 
         [HttpGet("search")]
@@ -208,39 +421,60 @@ namespace WebAPI.Controllers
             [FromQuery] string? store,
             [FromQuery] DateTime? dateFrom)
         {
-            _logger.LogInformation($"[DEBUG] Pesquisa de produtos - Nome: '{nome}', CategoriaId: {categoriaId}, Store: '{store}', DateFrom: {dateFrom}");
-
-            Expression<Func<Produto, bool>> predicate = p => true;
-
-            if (!string.IsNullOrWhiteSpace(nome))
+            try
             {
-                string nomeLower = nome.ToLower();
-                predicate = p => p.Nome.ToLower().Contains(nomeLower);
-            }
+                _logger.LogInformation($"[DEBUG] Pesquisa de produtos - Nome: '{nome}', CategoriaId: {categoriaId}, Store: '{store}', DateFrom: {dateFrom}");
 
-            if (categoriaId.HasValue)
+                Expression<Func<Produto, bool>> predicate = p => true;
+
+                if (!string.IsNullOrWhiteSpace(nome))
+                {
+                    string nomeLower = nome.ToLower();
+                    predicate = p => p.Nome.ToLower().Contains(nomeLower);
+                }
+
+                if (categoriaId.HasValue)
+                {
+                    Expression<Func<Produto, bool>> categoriaPredicate = p => p.CategoriaId == categoriaId.Value;
+                    predicate = predicate.And(categoriaPredicate);
+                }
+
+                if (!string.IsNullOrWhiteSpace(store))
+                {
+                    Expression<Func<Produto, bool>> storePredicate = p =>
+                        p.RegistosPrecos.Any(rp => rp.Loja != null && rp.Loja.Nome.ToLower().Contains(store.ToLower()));
+                    predicate = predicate.And(storePredicate);
+                }
+
+                if (dateFrom.HasValue)
+                {
+                    Expression<Func<Produto, bool>> datePredicate = p =>
+                        p.RegistosPrecos.Any(rp => rp.DataRegisto >= dateFrom.Value);
+                    predicate = predicate.And(datePredicate);
+                }
+
+                var produtos = await _produtoRepository.FindWithDetailsAsync(predicate);
+                _logger.LogInformation($"[DEBUG] Pesquisa retornou {produtos.Count()} produtos.");
+                return Ok(new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = true,
+                    Message = "Pesquisa realizada com sucesso.",
+                    StatusCode = 200,
+                    Data = produtos
+                });
+            }
+            catch (Exception ex)
             {
-                Expression<Func<Produto, bool>> categoriaPredicate = p => p.CategoriaId == categoriaId.Value;
-                predicate = predicate.And(categoriaPredicate);
+                _logger.LogError(ex, "[ERROR] Erro ao pesquisar produtos - Nome: {Nome}, CategoriaId: {CategoriaId}, Store: {Store}, DateFrom: {DateFrom}", nome, categoriaId, store, dateFrom);
+                return StatusCode(500, new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = false,
+                    Message = $"Erro ao pesquisar produtos: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
             }
-
-            if (!string.IsNullOrWhiteSpace(store))
-            {
-                Expression<Func<Produto, bool>> storePredicate = p =>
-                    p.RegistosPrecos.Any(rp => rp.Loja.Nome.ToLower().Contains(store.ToLower()));
-                predicate = predicate.And(storePredicate);
-            }
-
-            if (dateFrom.HasValue)
-            {
-                Expression<Func<Produto, bool>> datePredicate = p =>
-                    p.RegistosPrecos.Any(rp => rp.DataRegisto >= dateFrom.Value);
-                predicate = predicate.And(datePredicate);
-            }
-
-            var produtos = await _produtoRepository.FindWithDetailsAsync(predicate);
-            _logger.LogInformation($"[DEBUG] Pesquisa retornou {produtos.Count()} produtos.");
-            return Ok(ApiResponse<IEnumerable<Produto>>.SuccessResponse(produtos, "Pesquisa realizada com sucesso."));
         }
     }
 }

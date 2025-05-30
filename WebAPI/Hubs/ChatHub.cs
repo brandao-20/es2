@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Connections.Features;
 using Microsoft.AspNetCore.SignalR;
+using WebAPI.Context;
 using WebAPI.Entities;
 using WebAPI.Repositories;
 using WebAPI.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace WebAPI.Hubs
 {
@@ -12,11 +14,13 @@ namespace WebAPI.Hubs
     {
         private readonly ChatService _chatService;
         private readonly IUtilizadorRepository _utilizadorRepository;
+        private readonly AppDbContext _context;
 
-        public ChatHub(ChatService chatService, IUtilizadorRepository utilizadorRepository)
+        public ChatHub(ChatService chatService, IUtilizadorRepository utilizadorRepository, AppDbContext context)
         {
             _chatService = chatService;
             _utilizadorRepository = utilizadorRepository;
+            _context = context;
         }
 
         public override async Task OnConnectedAsync()
@@ -61,6 +65,19 @@ namespace WebAPI.Hubs
 
             await _chatService.SendMessageAsync(mensagem);
             Console.WriteLine($"[DEBUG] Mensagem enviada de {remetenteId} para {destinatarioId}: {message}");
+        }
+
+        public async Task NotifyPriceChange(int produtoId, decimal preco)
+        {
+            var favoritos = await _context.Favoritos
+                .Where(f => f.ProdutoId == produtoId)
+                .Select(f => f.UtilizadorId)
+                .ToListAsync();
+            foreach (var userId in favoritos)
+            {
+                await Clients.Group($"user-{userId}").SendAsync("PriceChanged", produtoId, preco);
+            }
+            Console.WriteLine($"[DEBUG] Notificação de mudança de preço enviada para produto {produtoId}: {preco:C}");
         }
     }
 }

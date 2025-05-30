@@ -7,7 +7,7 @@ namespace WebAPI.Repositories
 {
     public class UtilizadorRepository : Repository<Utilizador>, IUtilizadorRepository
     {
-        private readonly AppDbContext _context;
+        private new readonly AppDbContext _context;
 
         public UtilizadorRepository(AppDbContext context) : base(context)
         {
@@ -29,7 +29,7 @@ namespace WebAPI.Repositories
                 ?? throw new KeyNotFoundException($"Utilizador com ID {id} não encontrado.");
         }
 
-        public async Task<IEnumerable<Utilizador>> FindAsync(Expression<Func<Utilizador, bool>> predicate)
+        public new async Task<IEnumerable<Utilizador>> FindAsync(Expression<Func<Utilizador, bool>> predicate)
         {
             return await _context.Utilizadores
                 .AsNoTracking()

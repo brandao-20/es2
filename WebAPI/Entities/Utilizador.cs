@@ -27,6 +27,10 @@ public partial class Utilizador
     [JsonIgnore]
     public int? TipoUtilizadorId { get; set; }
 
+    public int Pontos { get; set; }
+
+    public virtual List<Favorito> Favoritos { get; set; } = new();
+
     [JsonIgnore]
     public virtual ICollection<RegistosPreco> RegistosPrecos { get; set; } = new List<RegistosPreco>();
 

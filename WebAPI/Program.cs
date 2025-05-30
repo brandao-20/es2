@@ -119,6 +119,21 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Garantir que o seeding inicial ocorra no arranque
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        dbContext.SeedInitialData();
+        Console.WriteLine("[DEBUG] Seeding inicial executado com sucesso no arranque.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[ERROR] Erro ao executar o seeding inicial no arranque: {ex.Message}");
+    }
+}
+
 // Middleware de tratamento de exceções
 app.UseExceptionHandler(errorApp =>
 {
