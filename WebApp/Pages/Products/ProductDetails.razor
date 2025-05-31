@@ -199,13 +199,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.ValidateToken())
-        {
-            Console.WriteLine("[DEBUG] Token inválido ou expirado, redirecionando para login.");
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
         if (Id <= 0)
         {
             ShowPopup("ID do produto inválido.", MessagePopup.MessageType.Error);
@@ -218,12 +211,6 @@ else
             Console.WriteLine($"[DEBUG] Carregando detalhes do produto com ID: {Id}");
             var prodResponse = await Http.GetAsync($"api/Produtos/{Id}");
             Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Produtos/{Id}: Status {prodResponse.StatusCode}");
-            if (prodResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar produto, redirecionando para login.");
-                Navigation.NavigateTo("/login");
-                return;
-            }
             if (prodResponse.IsSuccessStatusCode)
             {
                 var apiResponse = await prodResponse.Content.ReadFromJsonAsync<ApiResponse<Produto>>();
@@ -348,15 +335,8 @@ else
         try
         {
             Console.WriteLine($"[DEBUG] Tentando carregar o gráfico de preços para o produto {Id}");
-            var historyResponse = await Http.GetAsync($"api/Relatorios/produtos/{Id}/pricehistory");
+            var historyResponse = await Http.GetAsync($"api/Relatorios/produtos/{Id}/pricehistory?groupByStore=true");
             Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Relatorios/produtos/{Id}/pricehistory: Status {historyResponse.StatusCode}");
-
-            if (historyResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Console.WriteLine("[DEBUG] Token inválido ou expirado ao carregar o gráfico, redirecionando para login.");
-                Navigation.NavigateTo("/login");
-                return;
-            }
 
             if (historyResponse.IsSuccessStatusCode)
             {
@@ -464,12 +444,6 @@ else
             var favorito = new Favorito { ProdutoId = Id, UtilizadorId = AuthService.UserId };
             var response = await Http.PostAsJsonAsync("api/Favoritos", favorito);
             Console.WriteLine($"[DEBUG] Resposta do endpoint /api/Favoritos: Status {response.StatusCode}");
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Console.WriteLine("[DEBUG] Token inválido ou expirado ao favoritar, redirecionando para login.");
-                Navigation.NavigateTo("/login");
-                return;
-            }
             if (response.IsSuccessStatusCode)
             {
                 var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();

@@ -15,7 +15,7 @@ namespace WebApp.Services
 
         public bool IsLoggedIn => !string.IsNullOrEmpty(Token);
         public bool IsAdmin => Role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase);
-        public bool IsManager => Role.Equals("USER_MANAGER", StringComparison.OrdinalIgnoreCase);
+        public bool IsManager => Role.Equals("USER_MANAGER", StringComparison.OrdinalIgnoreCase) || Role.Equals("USERMANAGER", StringComparison.OrdinalIgnoreCase);
         public bool IsUser => Role.Equals("USER", StringComparison.OrdinalIgnoreCase);
 
         public void Clear()

@@ -18,6 +18,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous] // Permitir acesso sem autenticação
         public async Task<ActionResult<ApiResponse<IEnumerable<Categoria>>>> GetAll()
         {
             try

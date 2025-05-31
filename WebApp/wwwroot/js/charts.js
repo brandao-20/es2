@@ -40,7 +40,10 @@ window.renderPriceChart = function (data) {
             borderColor: getColor(index),
             backgroundColor: getColor(index, 0.2),
             fill: false,
-            tension: 0.1
+            tension: 0.1,
+            pointRadius: 5, // Mostrar pontos visíveis
+            pointHoverRadius: 8, // Aumentar o tamanho do ponto ao passar o rato
+            showLine: true // Garantir que a linha é desenhada entre os pontos
         };
     });
 
@@ -84,7 +87,11 @@ window.renderPriceChart = function (data) {
             plugins: {
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: 'right', // Mover a legenda para a lateral direita
+                    labels: {
+                        boxWidth: 20,
+                        padding: 15
+                    }
                 },
                 tooltip: {
                     mode: 'index',

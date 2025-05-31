@@ -305,7 +305,7 @@ else
             // Atualiza a lista de lojas existentes
             existingStores.Add(newStore);
             // Redireciona para a página de listagem com a mensagem de sucesso na query string
-            Navigation.NavigateTo("/stores?successMessage=Loja%20criada%20com%20sucesso!");
+            Navigation.NavigateTo("/admin/stores?successMessage=Loja%20criada%20com%20sucesso!");
         }
         else
         {
@@ -321,7 +321,7 @@ else
         // Não usado.
     }
 
-    private void GoBack() => Navigation.NavigateTo("/stores");
+    private void GoBack() => Navigation.NavigateTo("/admin/stores");
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
     {

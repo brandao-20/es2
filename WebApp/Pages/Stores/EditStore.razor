@@ -97,7 +97,7 @@ else
         if (response.IsSuccessStatusCode)
         {
             // Redireciona para a página de listagem com a mensagem de sucesso na query string
-            Navigation.NavigateTo("/stores?successMessage=Loja%20atualizada%20com%20sucesso!");
+            Navigation.NavigateTo("/admin/stores?successMessage=Loja%20atualizada%20com%20sucesso!");
         }
         else
         {
@@ -121,7 +121,7 @@ else
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/stores");
+    private void GoBack() => Navigation.NavigateTo("/admin/stores");
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
     {

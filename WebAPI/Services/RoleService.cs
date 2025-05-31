@@ -11,6 +11,7 @@ namespace WebAPI.Services
             {
                 "ADMIN" => "Admin",
                 "USER_MANAGER" => "UserManager",
+                "USERMANAGER" => "UserManager",
                 _ => "User"
             };
         }

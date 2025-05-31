@@ -1,0 +1,196 @@
+@page "/categories/edit/{Id:int}"
+@using WebApp.Models
+@using WebApp.Components
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<PageTitle>Editar Categoria</PageTitle>
+<h3>Editar Categoria</h3>
+
+@if (!AuthService.IsAdmin && !AuthService.IsManager)
+{
+    <p>Você não tem permissão para editar categorias.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else if (!isInitialized)
+{
+    <p>Carregando...</p>
+}
+else if (categoria == null)
+{
+    <p class="text-danger">Categoria não encontrada.</p>
+    <button class="btn btn-secondary" @onclick="GoBack">← Voltar</button>
+}
+else
+{
+    <div class="card p-4">
+        <EditForm Model="@categoria" OnValidSubmit="HandleUpdate">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger mb-3" />
+
+            <div class="mb-3">
+                <label class="form-label">Nome:</label>
+                <InputText class="form-control" @bind-Value="categoria.Nome" />
+                <ValidationMessage For="@(() => categoria.Nome)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Categoria Pai:</label>
+                <select class="form-select" @bind="categoria.ParentId">
+                    <option value="">Nenhuma</option>
+                    @foreach (var cat in categorias.Where(c => c.CategoriaId != Id))
+                    {
+                        <option value="@cat.CategoriaId">@cat.Nome</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Atualizar</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="GoBack">Cancelar</button>
+        </EditForm>
+    </div>
+}
+
+<!-- Popup para mensagens -->
+<MessagePopup
+    IsVisible="@showPopup"
+    Message="@popupMessage"
+    Type="@popupType"
+    OnClose="ClosePopup" />
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Categoria? categoria;
+    private List<Categoria>? categorias;
+    private bool isInitialized = false;
+    private bool showPopup = false;
+    private string popupMessage = "";
+    private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!AuthService.IsAdmin && !AuthService.IsManager)
+        {
+            Navigation.NavigateTo("/homeadmin");
+            return;
+        }
+
+        try
+        {
+            // Carregar a categoria a ser editada
+            var categoriaResponse = await Http.GetAsync($"api/Categorias/{Id}");
+            if (categoriaResponse.IsSuccessStatusCode)
+            {
+                var apiResponse = await categoriaResponse.Content.ReadFromJsonAsync<ApiResponse<Categoria>>();
+                if (apiResponse?.Success == true)
+                {
+                    categoria = apiResponse.Data;
+                }
+                else
+                {
+                    categoria = null;
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar a categoria.", MessagePopup.MessageType.Error);
+                }
+            }
+            else
+            {
+                categoria = null;
+                ShowPopup("Erro ao carregar a categoria. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+            }
+
+            // Carregar categorias existentes para o dropdown
+            var categoriasResponse = await Http.GetAsync("api/Categorias");
+            if (categoriasResponse.IsSuccessStatusCode)
+            {
+                var apiResponse = await categoriasResponse.Content.ReadFromJsonAsync<ApiResponse<List<Categoria>>>();
+                if (apiResponse?.Success == true)
+                {
+                    categorias = apiResponse.Data ?? new List<Categoria>();
+                }
+                else
+                {
+                    categorias = new List<Categoria>();
+                    ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
+                }
+            }
+            else
+            {
+                categorias = new List<Categoria>();
+                ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            categoria = null;
+            categorias = new List<Categoria>();
+            ShowPopup($"Erro inesperado ao carregar os dados: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+        finally
+        {
+            isInitialized = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandleUpdate()
+    {
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/Categorias/{Id}", categoria);
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+                if (apiResponse?.Success == true)
+                {
+                    Navigation.NavigateTo($"/admin/categories?successMessage={Uri.EscapeDataString("Categoria atualizada com sucesso!")}");
+                }
+                else
+                {
+                    ShowPopup(apiResponse?.Message ?? "Erro ao atualizar a categoria.", MessagePopup.MessageType.Error);
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                ShowPopup($"Erro ao atualizar a categoria: {errorContent}", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro inesperado ao atualizar a categoria: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/admin/categories");
+
+    private void ShowPopup(string message, MessagePopup.MessageType type)
+    {
+        popupMessage = message;
+        popupType = type;
+        showPopup = true;
+    }
+
+    private async Task ClosePopup()
+    {
+        showPopup = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private class ApiResponse<T>
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
+        public int StatusCode { get; set; }
+        public T? Data { get; set; }
+    }
+}

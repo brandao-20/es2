@@ -72,6 +72,7 @@ namespace WebAPI.Controllers
             var user = (await _utilizadorRepository.FindAsync(u => u.GoogleId == googleId)).FirstOrDefault();
             if (user == null)
             {
+                // Novos utilizadores via Google devem ser USER por padrão
                 var tipo = await _tipoUtilizadorRepository.FindAsync(t => t.Tipo == "USER")
                     .ContinueWith(t => t.Result.FirstOrDefault());
                 if (tipo == null)
@@ -98,7 +99,17 @@ namespace WebAPI.Controllers
                 await _utilizadorRepository.UpdateAsync(user);
             }
 
+            // Carregar o TipoUtilizador do utilizador existente
+            if (user.TipoUtilizador == null)
+            {
+                var tipo = user.TipoUtilizadorId.HasValue
+                    ? await _tipoUtilizadorRepository.GetByIdAsync(user.TipoUtilizadorId.Value)
+                    : null;
+                user.TipoUtilizador = tipo ?? new TipoUtilizador { Tipo = "USER" };
+            }
+
             var token = GenerateJwtForGoogleUser(user);
+            Console.WriteLine($"[DEBUG] Token gerado para utilizador {user.Username}: {token}");
             return Redirect($"http://localhost:5116/?googleToken={token}");
         }
 
@@ -113,6 +124,8 @@ namespace WebAPI.Controllers
             var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
             var role = _roleService.NormalizeRole(user.TipoUtilizador?.Tipo ?? "USER");
+            Console.WriteLine($"[DEBUG] Papel atribuído ao utilizador {user.Username}: {role}");
+
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Username),
@@ -120,6 +133,12 @@ namespace WebAPI.Controllers
                 new Claim(ClaimTypes.Role, role),
                 new Claim("utilizadorId", user.UtilizadorId.ToString())
             };
+
+            // Log dos claims adicionados
+            foreach (var claim in claims)
+            {
+                Console.WriteLine($"[DEBUG] Claim adicionado: {claim.Type} = {claim.Value}");
+            }
 
             var token = new JwtSecurityToken(
                 issuer: issuer,

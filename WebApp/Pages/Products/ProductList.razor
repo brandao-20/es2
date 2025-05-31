@@ -20,7 +20,7 @@ else if (produtos == null || !produtos.Any())
 else
 {
     <div class="mb-3">
-        @if (AuthService.IsAdmin || AuthService.IsManager)
+        @if (AuthService.IsLoggedIn)
         {
             <button class="btn btn-primary me-2" @onclick="IrParaCriarProduto">Criar Novo Produto</button>
             <a href="/prices/new" class="btn btn-primary">Registar Preço</a>
@@ -148,12 +148,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.ValidateToken())
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
         var uri = new Uri(Navigation.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
         var successMessage = query["successMessage"];
@@ -244,6 +238,11 @@ else
 
     private void IrParaCriarProduto()
     {
+        if (!AuthService.IsLoggedIn)
+        {
+            ShowPopup("Faça login para criar um novo produto.", MessagePopup.MessageType.Error);
+            return;
+        }
         Navigation.NavigateTo("/products/new");
     }
 

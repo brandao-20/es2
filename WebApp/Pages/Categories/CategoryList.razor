@@ -1,0 +1,96 @@
+@page "/categories"
+@using WebApp.Models
+@using WebApp.Components
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Lista de Categorias</PageTitle>
+<h3>Lista de Categorias</h3>
+
+@if (categorias == null)
+{
+    <p>Carregando...</p>
+}
+else if (!categorias.Any())
+{
+    <p>Nenhuma categoria cadastrada.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Categoria Pai</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var cat in categorias)
+            {
+                <tr>
+                    <td>@cat.CategoriaId</td>
+                    <td>@cat.Nome</td>
+                    <td>@(cat.ParentId.HasValue ? categorias.FirstOrDefault(c => c.CategoriaId == cat.ParentId)?.Nome ?? "N/A" : "Nenhuma")</td>
+                </tr>
+                @if (cat.SubCategorias != null && cat.SubCategorias.Any())
+                {
+                    foreach (var subCat in cat.SubCategorias)
+                    {
+                        <tr>
+                            <td>@subCat.CategoriaId</td>
+                            <td style="padding-left: 20px;">└ @subCat.Nome</td>
+                            <td>@(subCat.ParentId.HasValue ? categorias.FirstOrDefault(c => c.CategoriaId == subCat.ParentId)?.Nome ?? "N/A" : "Nenhuma")</td>
+                        </tr>
+                    }
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Categoria>? categorias;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarCategorias();
+    }
+
+    private async Task CarregarCategorias()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Categorias");
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Categoria>>>();
+                if (apiResponse?.Success == true)
+                {
+                    categorias = apiResponse.Data ?? new List<Categoria>();
+                }
+                else
+                {
+                    categorias = new List<Categoria>();
+                }
+            }
+            else
+            {
+                categorias = new List<Categoria>();
+            }
+        }
+        catch (Exception)
+        {
+            categorias = new List<Categoria>();
+        }
+    }
+
+    private class ApiResponse<T>
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
+        public int StatusCode { get; set; }
+        public T? Data { get; set; }
+    }
+}

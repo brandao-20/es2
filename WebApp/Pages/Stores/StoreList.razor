@@ -1,0 +1,255 @@
+@page "/stores"
+@using WebApp.Models
+@using WebApp.Components
+@using WebApp.Services
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
+
+<PageTitle>Lista de Lojas</PageTitle>
+<h3>Lista de Lojas</h3>
+
+@if (lojas == null)
+{
+    <p>Carregando...</p>
+}
+else if (!lojas.Any())
+{
+    <p>Nenhuma loja cadastrada.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Logotipo</th>
+                <th>Nome</th>
+                <th>Endereço</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var l in lojas)
+            {
+                <tr>
+                    <td>
+                        @{
+                            var logoPath = GetLogoPath(l.Nome);
+                            if (!string.IsNullOrEmpty(logoPath))
+                            {
+                                <img src="@logoPath" alt="Logotipo de @l.Nome" class="logo-img" />
+                            }
+                            else
+                            {
+                                <span>Sem logotipo</span>
+                            }
+                        }
+                    </td>
+                    <td>@l.Nome</td>
+                    <td class="truncate-address">@l.Endereco</td>
+                    <td>@l.Localizacao?.Latitude</td>
+                    <td>@l.Localizacao?.Longitude</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-2" @onclick="@(() => VerDetalhes(l))">Ver Detalhes</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(!CanGoPrevious)">Anterior</button>
+        <span>Página @currentPage de @totalPages</span>
+        <button class="btn btn-secondary" @onclick="NextPage" disabled="@(!CanGoNext)">Próximo</button>
+    </div>
+}
+
+<!-- Modal para Detalhes -->
+@if (lojaSelecionada != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalhes da Loja: @lojaSelecionada.Nome</h5>
+                    <button type="button" class="btn-close" @onclick="FecharModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Nome:</strong> @lojaSelecionada.Nome</p>
+                    <p><strong>Endereço:</strong> @lojaSelecionada.Endereco</p>
+                    <p><strong>Latitude:</strong> @lojaSelecionada.Localizacao?.Latitude</p>
+                    <p><strong>Longitude:</strong> @lojaSelecionada.Localizacao?.Longitude</p>
+                    @if (lojaSelecionada.Localizacao != null)
+                    {
+                        <h6 class="mt-3">Street View:</h6>
+                        <GoogleStreetView
+                            Latitude="@(lojaSelecionada.Localizacao.Latitude ?? 38.7223m)"
+                            Longitude="@(lojaSelecionada.Localizacao.Longitude ?? -9.1393m)" />
+                    }
+                    else
+                    {
+                        <p class="text-warning">Localização não disponível.</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="FecharModal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* Estilo para truncar o endereço */
+    .truncate-address {
+        max-width: 300px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Estilo para os logotipos */
+    .logo-img {
+        max-height: 40px; /* Ajusta a altura máxima do logotipo */
+        max-width: 100px; /* Ajusta a largura máxima do logotipo */
+        object-fit: contain; /* Mantém a proporção do logotipo */
+    }
+</style>
+
+@code {
+    private List<LojaModel>? lojas;
+    private LojaModel? lojaSelecionada;
+
+    // Paginação
+    private int currentPage = 1;
+    private int pageSize = 5;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarLojas();
+    }
+
+    private async Task CarregarLojas()
+    {
+        var response = await Http.GetAsync($"api/Lojas?page={currentPage}&pageSize={pageSize}");
+        if (response.IsSuccessStatusCode)
+        {
+            lojas = await response.Content.ReadFromJsonAsync<List<LojaModel>>();
+
+            if (response.Headers.TryGetValues("X-Total-Count", out var values))
+            {
+                if (int.TryParse(values.FirstOrDefault(), out int totalItems))
+                {
+                    totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+                }
+            }
+            else
+            {
+                totalPages = 1;
+            }
+
+            // Fallback: se a página atual for maior que o total de páginas, voltar para a última página e recarregar
+            if (currentPage > totalPages && totalPages > 0)
+            {
+                currentPage = totalPages;
+                await CarregarLojas();
+                return;
+            }
+        }
+        else
+        {
+            lojas = new List<LojaModel>();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await CarregarLojas();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await CarregarLojas();
+        }
+    }
+
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
+
+    private void VerDetalhes(LojaModel loja)
+    {
+        lojaSelecionada = loja;
+        StateHasChanged();
+    }
+
+    private void FecharModal()
+    {
+        lojaSelecionada = null;
+        StateHasChanged();
+    }
+
+    // Função para mapear o nome da loja ao caminho do logotipo
+    private string GetLogoPath(string nomeLoja)
+    {
+        if (string.IsNullOrEmpty(nomeLoja))
+            return "";
+
+        nomeLoja = nomeLoja.ToLower();
+
+        if (nomeLoja.Contains("lidl"))
+            return "/images/logos/lidl.png";
+        if (nomeLoja.Contains("pingo doce"))
+            return "/images/logos/pingo_doce.png";
+        if (nomeLoja.Contains("continente"))
+            return "/images/logos/continente.png";
+        if (nomeLoja.Contains("intermarché") || nomeLoja.Contains("intermarche"))
+            return "/images/logos/intermarche.png";
+        if (nomeLoja.Contains("auchan"))
+            return "/images/logos/auchan.png";
+        if (nomeLoja.Contains("aldi"))
+            return "/images/logos/aldi.png";
+        if (nomeLoja.Contains("mercadona"))
+            return "/images/logos/mercadona.png";
+        if (nomeLoja.Contains("minipreço") || nomeLoja.Contains("mini preço"))
+            return "/images/logos/minipreco.png";
+        if (nomeLoja.Contains("apolonia"))
+            return "/images/logos/apolonia.png";
+        if (nomeLoja.Contains("e.leclerc"))
+            return "/images/logos/eleclerc.png";
+        if (nomeLoja.Contains("recheio"))
+            return "/images/logos/recheio.png";
+        if (nomeLoja.Contains("froiz"))
+            return "/images/logos/froiz.png";
+        if (nomeLoja.Contains("galego"))
+            return "/images/logos/galego.png";
+
+        return ""; // Retorna vazio se não encontrar um logotipo correspondente
+    }
+
+    public class LojaModel
+    {
+        public int LojaId { get; set; }
+        public string Nome { get; set; } = "";
+        public string Endereco { get; set; } = "";
+        public int? LocalizacaoId { get; set; }
+        public LocalizacaoModel? Localizacao { get; set; }
+    }
+
+    public class LocalizacaoModel
+    {
+        public int LocalizacaoId { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+        public string? GoogleMapsUrl { get; set; }
+    }
+}
