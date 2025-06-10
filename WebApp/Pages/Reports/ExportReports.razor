@@ -83,7 +83,7 @@
         string endpoint = selectedReport switch
         {
             "stores" => "api/Export/lojas/csv",
-            "products" => "api/Export/products/csv",
+            "products" => "api/Export/produtos/csv", // Corrigido de "products" para "produtos"
             _ => "api/Export/lojas/csv"
         };
         try
@@ -107,7 +107,7 @@
                     }
                     else
                     {
-                        ShowPopup("Erro ao exportar o CSV. Endpoint CSV não implementado para este relatório.", MessagePopup.MessageType.Error);
+                        ShowPopup("Erro ao exportar o CSV. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                     }
                 }
                 catch

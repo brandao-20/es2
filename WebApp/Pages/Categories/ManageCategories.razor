@@ -33,33 +33,29 @@ else
         <table class="table">
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>Nome</th>
                     <th>Categoria Pai</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var cat in categorias)
+                @foreach (var cat in categorias.OrderBy(c => c.Nome))
                 {
                     <tr>
-                        <td>@cat.CategoriaId</td>
                         <td>@cat.Nome</td>
-                        <td>@(cat.ParentId.HasValue ? categorias.FirstOrDefault(c => c.CategoriaId == cat.ParentId)?.Nome ?? "N/A" : "Nenhuma")</td>
+                        <td>@(cat.ParentId.HasValue ? GetCategoriaPaiNome(cat.ParentId.Value) : "Nenhuma")</td>
                         <td>
                             <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(cat.CategoriaId))">Editar</button>
                             <button class="btn btn-sm btn-danger" @onclick="@(() => ConfirmarExclusao(cat.CategoriaId, cat.Nome))">Remover</button>
                         </td>
                     </tr>
+                    @if (cat.SubCategorias != null && cat.SubCategorias.Any())
+                    {
+                        @RenderSubCategories(cat.SubCategorias, 1)
+                    }
                 }
             </tbody>
         </table>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(!CanGoPrevious)">Anterior</button>
-            <span>Página @currentPage de @totalPages</span>
-            <button class="btn btn-secondary" @onclick="NextPage" disabled="@(!CanGoNext)">Próximo</button>
-        </div>
     }
 }
 
@@ -133,9 +129,6 @@ else
 
 @code {
     private List<Categoria>? categorias;
-    private int currentPage = 1;
-    private int pageSize = 5;
-    private int totalPages = 1;
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
@@ -173,75 +166,32 @@ else
     {
         try
         {
-            var response = await Http.GetAsync($"api/Categorias?page={currentPage}&pageSize={pageSize}");
+            var response = await Http.GetAsync("api/Categorias");
             if (response.IsSuccessStatusCode)
             {
                 var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Categoria>>>();
                 if (apiResponse?.Success == true)
                 {
                     categorias = apiResponse.Data ?? new List<Categoria>();
-                    if (response.Headers.TryGetValues("X-Total-Count", out var values))
-                    {
-                        if (int.TryParse(values.FirstOrDefault(), out int totalItems))
-                        {
-                            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
-                        }
-                    }
-                    else
-                    {
-                        totalPages = 1;
-                    }
-
-                    // Fallback: se a página atual for maior que o total de páginas, voltar para a última página e recarregar
-                    if (currentPage > totalPages && totalPages > 0)
-                    {
-                        currentPage = totalPages;
-                        await CarregarCategorias();
-                        return;
-                    }
                 }
                 else
                 {
                     categorias = new List<Categoria>();
-                    totalPages = 1;
                     ShowPopup(apiResponse?.Message ?? "Erro ao carregar as categorias.", MessagePopup.MessageType.Error);
                 }
             }
             else
             {
                 categorias = new List<Categoria>();
-                totalPages = 1;
                 ShowPopup("Erro ao carregar as categorias. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
             }
         }
         catch (Exception ex)
         {
             categorias = new List<Categoria>();
-            totalPages = 1;
             ShowPopup($"Erro inesperado ao carregar as categorias: {ex.Message}", MessagePopup.MessageType.Error);
         }
     }
-
-    private async Task PreviousPage()
-    {
-        if (currentPage > 1)
-        {
-            currentPage--;
-            await CarregarCategorias();
-        }
-    }
-
-    private async Task NextPage()
-    {
-        if (currentPage < totalPages)
-        {
-            currentPage++;
-            await CarregarCategorias();
-        }
-    }
-
-    private bool CanGoPrevious => currentPage > 1;
-    private bool CanGoNext => currentPage < totalPages;
 
     private void GoBack() => Navigation.NavigateTo("/homeadmin");
 
@@ -309,6 +259,32 @@ else
         showPopup = false;
         await InvokeAsync(StateHasChanged);
     }
+
+    private string GetCategoriaPaiNome(int parentId)
+    {
+        var pai = categorias?.SelectMany(c => new[] { c }.Concat(c.SubCategorias ?? new List<Categoria>()))
+                            .FirstOrDefault(c => c.CategoriaId == parentId);
+        return pai?.Nome ?? "N/A";
+    }
+
+    private RenderFragment RenderSubCategories(List<Categoria> subCategorias, int nivel) => __builder =>
+    {
+        foreach (var subCat in subCategorias.OrderBy(c => c.Nome))
+        {
+            <tr>
+                <td style="padding-left: @(nivel * 20)px;">└ @subCat.Nome</td>
+                <td>@(subCat.ParentId.HasValue ? GetCategoriaPaiNome(subCat.ParentId.Value) : "Nenhuma")</td>
+                <td>
+                    <button class="btn btn-sm btn-warning me-2" @onclick="@(() => Editar(subCat.CategoriaId))">Editar</button>
+                    <button class="btn btn-sm btn-danger" @onclick="@(() => ConfirmarExclusao(subCat.CategoriaId, subCat.Nome))">Remover</button>
+                </td>
+            </tr>
+            if (subCat.SubCategorias != null && subCat.SubCategorias.Any())
+            {
+                @RenderSubCategories(subCat.SubCategorias, nivel + 1)
+            }
+        }
+    };
 
     private class ApiResponse<T>
     {

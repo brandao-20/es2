@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Entities;
 using WebAPI.Repositories;
+using System.Security.Claims;
 
 namespace WebAPI.Controllers
 {
@@ -98,6 +99,12 @@ namespace WebAPI.Controllers
         [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<Categoria>>> Create(Categoria categoria)
         {
+            // Log do utilizador autenticado e papéis
+            var userName = User.Identity?.Name ?? "Não autenticado";
+            var userId = User.FindFirst("utilizadorId")?.Value ?? "Desconhecido";
+            var roles = User.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList();
+            Console.WriteLine($"[DEBUG] Tentativa de criar categoria - Utilizador: {userName}, ID: {userId}, Papéis: [{string.Join(", ", roles)}]");
+
             try
             {
                 if (categoria == null || string.IsNullOrEmpty(categoria.Nome))
@@ -151,6 +158,12 @@ namespace WebAPI.Controllers
         [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<object>>> Update(int id, Categoria categoria)
         {
+            // Log do utilizador autenticado e papéis
+            var userName = User.Identity?.Name ?? "Não autenticado";
+            var userId = User.FindFirst("utilizadorId")?.Value ?? "Desconhecido";
+            var roles = User.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList();
+            Console.WriteLine($"[DEBUG] Tentativa de atualizar categoria - Utilizador: {userName}, ID: {userId}, Papéis: [{string.Join(", ", roles)}]");
+
             try
             {
                 if (id <= 0 || id != categoria.CategoriaId)
@@ -236,6 +249,12 @@ namespace WebAPI.Controllers
         [Authorize(Roles = "ADMIN")]
         public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
         {
+            // Log do utilizador autenticado e papéis
+            var userName = User.Identity?.Name ?? "Não autenticado";
+            var userId = User.FindFirst("utilizadorId")?.Value ?? "Desconhecido";
+            var roles = User.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList();
+            Console.WriteLine($"[DEBUG] Tentativa de remover categoria - Utilizador: {userName}, ID: {userId}, Papéis: [{string.Join(", ", roles)}]");
+
             try
             {
                 if (id <= 0)

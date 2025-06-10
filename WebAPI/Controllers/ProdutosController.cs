@@ -4,8 +4,10 @@ using System.Linq.Expressions;
 using WebAPI.Entities;
 using WebAPI.Repositories;
 using WebAPI.Extensions;
+using WebAPI.Context;
 using WebAPI.Helpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 
 namespace WebAPI.Controllers
 {
@@ -17,17 +19,20 @@ namespace WebAPI.Controllers
         private readonly ICategoriaRepository _categoriaRepository;
         private readonly IRegistosPrecoRepository _registosPrecoRepository;
         private readonly ILogger<ProdutosController> _logger;
+        private readonly AppDbContext _context; // Adicionado para acessar Favoritos
 
         public ProdutosController(
             IProdutoRepository produtoRepository,
             ICategoriaRepository categoriaRepository,
             IRegistosPrecoRepository registosPrecoRepository,
-            ILogger<ProdutosController> logger)
+            ILogger<ProdutosController> logger,
+            AppDbContext context) // Injetar o contexto
         {
             _produtoRepository = produtoRepository;
             _categoriaRepository = categoriaRepository;
             _registosPrecoRepository = registosPrecoRepository;
             _logger = logger;
+            _context = context;
         }
 
         // GET: api/Produtos?page=1&pageSize=5
@@ -470,6 +475,58 @@ namespace WebAPI.Controllers
                 {
                     Success = false,
                     Message = $"Erro ao pesquisar produtos: {ex.Message}",
+                    ErrorCode = "INTERNAL_SERVER_ERROR",
+                    StatusCode = 500,
+                    Data = null
+                });
+            }
+        }
+
+        [HttpGet("favorites/{userId}")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<IEnumerable<Produto>>>> GetFavorites(int userId)
+        {
+            try
+            {
+                _logger.LogInformation($"[DEBUG] Buscando produtos favoritos para o usuário {userId}");
+
+                // Buscar os IDs dos produtos favoritos do usuário
+                var favoriteProductIds = await _context.Favoritos
+                    .Where(f => f.UtilizadorId == userId) // Corrigido de UserId para UtilizadorId
+                    .Select(f => f.ProdutoId)
+                    .ToListAsync();
+
+                if (!favoriteProductIds.Any())
+                {
+                    _logger.LogInformation($"[DEBUG] Nenhum produto favorito encontrado para o usuário {userId}");
+                    return Ok(new ApiResponse<IEnumerable<Produto>>
+                    {
+                        Success = true,
+                        Message = "Nenhum produto favorito encontrado.",
+                        StatusCode = 200,
+                        Data = new List<Produto>()
+                    });
+                }
+
+                // Buscar os produtos correspondentes aos IDs favoritos
+                var produtos = await _produtoRepository.FindWithDetailsAsync(p => favoriteProductIds.Contains(p.ProdutoId));
+
+                _logger.LogInformation($"[DEBUG] Produtos favoritos encontrados para o usuário {userId}: {produtos.Count()} produtos");
+                return Ok(new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = true,
+                    Message = "Produtos favoritos obtidos com sucesso.",
+                    StatusCode = 200,
+                    Data = produtos
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[ERROR] Erro ao buscar produtos favoritos para o usuário {UserId}", userId);
+                return StatusCode(500, new ApiResponse<IEnumerable<Produto>>
+                {
+                    Success = false,
+                    Message = $"Erro ao buscar produtos favoritos: {ex.Message}",
                     ErrorCode = "INTERNAL_SERVER_ERROR",
                     StatusCode = 500,
                     Data = null

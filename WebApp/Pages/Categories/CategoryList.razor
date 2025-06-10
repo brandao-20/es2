@@ -20,29 +20,20 @@ else
     <table class="table">
         <thead>
             <tr>
-                <th>ID</th>
                 <th>Nome</th>
                 <th>Categoria Pai</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var cat in categorias)
+            @foreach (var cat in categorias.OrderBy(c => c.Nome))
             {
                 <tr>
-                    <td>@cat.CategoriaId</td>
                     <td>@cat.Nome</td>
-                    <td>@(cat.ParentId.HasValue ? categorias.FirstOrDefault(c => c.CategoriaId == cat.ParentId)?.Nome ?? "N/A" : "Nenhuma")</td>
+                    <td>@(cat.ParentId.HasValue ? GetCategoriaPaiNome(cat.ParentId.Value) : "Nenhuma")</td>
                 </tr>
                 @if (cat.SubCategorias != null && cat.SubCategorias.Any())
                 {
-                    foreach (var subCat in cat.SubCategorias)
-                    {
-                        <tr>
-                            <td>@subCat.CategoriaId</td>
-                            <td style="padding-left: 20px;">└ @subCat.Nome</td>
-                            <td>@(subCat.ParentId.HasValue ? categorias.FirstOrDefault(c => c.CategoriaId == subCat.ParentId)?.Nome ?? "N/A" : "Nenhuma")</td>
-                        </tr>
-                    }
+                    @RenderSubCategories(cat.SubCategorias, 1)
                 }
             }
         </tbody>
@@ -84,6 +75,28 @@ else
             categorias = new List<Categoria>();
         }
     }
+
+    private string GetCategoriaPaiNome(int parentId)
+    {
+        var pai = categorias?.SelectMany(c => new[] { c }.Concat(c.SubCategorias ?? new List<Categoria>()))
+                            .FirstOrDefault(c => c.CategoriaId == parentId);
+        return pai?.Nome ?? "N/A";
+    }
+
+    private RenderFragment RenderSubCategories(List<Categoria> subCategorias, int nivel) => __builder =>
+    {
+        foreach (var subCat in subCategorias.OrderBy(c => c.Nome))
+        {
+            <tr>
+                <td style="padding-left: @(nivel * 20)px;">└ @subCat.Nome</td>
+                <td>@(subCat.ParentId.HasValue ? GetCategoriaPaiNome(subCat.ParentId.Value) : "Nenhuma")</td>
+            </tr>
+            if (subCat.SubCategorias != null && subCat.SubCategorias.Any())
+            {
+                @RenderSubCategories(subCat.SubCategorias, nivel + 1)
+            }
+        }
+    };
 
     private class ApiResponse<T>
     {

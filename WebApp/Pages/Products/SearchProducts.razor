@@ -332,70 +332,99 @@ else
 
         try
         {
-            var query = new List<string>();
-            if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
-                query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
-            if (useCategory && searchCriteria.CategoryId.HasValue && searchCriteria.CategoryId != 0)
-                query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
-            if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
-                query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
-            if (useDate && searchCriteria.DateFrom.HasValue)
-                query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
-
-            var queryString = string.Join("&", query);
-            Console.WriteLine($"[DEBUG] Enviando requisição para: api/Produtos/search?{queryString}");
-
-            var response = await Http.GetAsync($"api/Produtos/search?{queryString}");
-            var responseContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[DEBUG] Resposta bruta da API: {responseContent}");
-
-            if (response.IsSuccessStatusCode)
+            if (useFavorites && AuthService.IsLoggedIn && favoriteProductIds.Any() && 
+                !useName && !useCategory && !useStore && !useDate)
             {
-                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
-                if (apiResponse?.Success == true)
+                // Apenas filtro de favoritos ativo
+                var response = await Http.GetAsync($"api/Produtos/favorites/{AuthService.UserId}");
+                if (response.IsSuccessStatusCode)
                 {
-                    var fetchedProducts = apiResponse.Data ?? new List<Produto>();
-                    Console.WriteLine($"[DEBUG] Produtos retornados pela API: {fetchedProducts.Count}");
-                    foreach (var prod in fetchedProducts)
+                    var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
+                    if (apiResponse?.Success == true)
                     {
-                        Console.WriteLine($"[DEBUG] Produto retornado: ID={prod.ProdutoId}, Nome={prod.Nome}");
-                    }
-
-                    // Filtrar pelos favoritos se o filtro estiver ativo
-                    if (useFavorites && AuthService.IsLoggedIn && favoriteProductIds.Any())
-                    {
-                        products = fetchedProducts.Where(p => favoriteProductIds.Contains(p.ProdutoId)).ToList();
-                        Console.WriteLine($"[DEBUG] Produtos filtrados por favoritos: {products.Count}");
-                        foreach (var prod in products)
-                        {
-                            Console.WriteLine($"[DEBUG] Produto favorito encontrado: ID={prod.ProdutoId}, Nome={prod.Nome}");
-                        }
-                        if (!products.Any())
-                        {
-                            ShowPopup("Nenhum produto favorito encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
-                        }
+                        products = apiResponse.Data ?? new List<Produto>();
+                        Console.WriteLine($"[DEBUG] Produtos favoritos retornados: {products.Count}");
                     }
                     else
                     {
-                        products = fetchedProducts;
-                        Console.WriteLine($"[DEBUG] Produtos desserializados (sem filtro de favoritos): {products.Count}");
-                    }
-
-                    if (!products.Any() && !useFavorites)
-                    {
-                        ShowPopup("Nenhum produto encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                        products = new List<Produto>();
+                        ShowPopup(apiResponse?.Message ?? "Erro ao carregar produtos favoritos.", MessagePopup.MessageType.Error);
                     }
                 }
                 else
                 {
                     products = new List<Produto>();
-                    ShowPopup(apiResponse?.Message ?? "Erro ao realizar a pesquisa.", MessagePopup.MessageType.Error);
+                    ShowPopup("Erro ao carregar produtos favoritos. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
                 }
             }
             else
             {
-                products = new List<Produto>();
-                ShowPopup("Erro ao realizar a pesquisa. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                // Pesquisa com outros filtros
+                var query = new List<string>();
+                if (useName && !string.IsNullOrEmpty(searchCriteria.Name))
+                    query.Add($"nome={Uri.EscapeDataString(searchCriteria.Name)}");
+                if (useCategory && searchCriteria.CategoryId.HasValue && searchCriteria.CategoryId != 0)
+                    query.Add($"categoriaId={searchCriteria.CategoryId.Value}");
+                if (useStore && !string.IsNullOrEmpty(searchCriteria.Store))
+                    query.Add($"store={Uri.EscapeDataString(searchCriteria.Store)}");
+                if (useDate && searchCriteria.DateFrom.HasValue)
+                    query.Add($"dateFrom={searchCriteria.DateFrom.Value:yyyy-MM-dd}");
+
+                var queryString = string.Join("&", query);
+                Console.WriteLine($"[DEBUG] Enviando requisição para: api/Produtos/search?{queryString}");
+
+                var response = await Http.GetAsync($"api/Produtos/search?{queryString}");
+                var responseContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[DEBUG] Resposta bruta da API: {responseContent}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<Produto>>>();
+                    if (apiResponse?.Success == true)
+                    {
+                        var fetchedProducts = apiResponse.Data ?? new List<Produto>();
+                        Console.WriteLine($"[DEBUG] Produtos retornados pela API: {fetchedProducts.Count}");
+                        foreach (var prod in fetchedProducts)
+                        {
+                            Console.WriteLine($"[DEBUG] Produto retornado: ID={prod.ProdutoId}, Nome={prod.Nome}");
+                        }
+
+                        // Filtrar pelos favoritos se o filtro estiver ativo
+                        if (useFavorites && AuthService.IsLoggedIn && favoriteProductIds.Any())
+                        {
+                            products = fetchedProducts.Where(p => favoriteProductIds.Contains(p.ProdutoId)).ToList();
+                            Console.WriteLine($"[DEBUG] Produtos filtrados por favoritos: {products.Count}");
+                            foreach (var prod in products)
+                            {
+                                Console.WriteLine($"[DEBUG] Produto favorito encontrado: ID={prod.ProdutoId}, Nome={prod.Nome}");
+                            }
+                            if (!products.Any())
+                            {
+                                ShowPopup("Nenhum produto favorito encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                            }
+                        }
+                        else
+                        {
+                            products = fetchedProducts;
+                            Console.WriteLine($"[DEBUG] Produtos desserializados (sem filtro de favoritos): {products.Count}");
+                        }
+
+                        if (!products.Any() && !useFavorites)
+                        {
+                            ShowPopup("Nenhum produto encontrado com os critérios fornecidos.", MessagePopup.MessageType.Info);
+                        }
+                    }
+                    else
+                    {
+                        products = new List<Produto>();
+                        ShowPopup(apiResponse?.Message ?? "Erro ao realizar a pesquisa.", MessagePopup.MessageType.Error);
+                    }
+                }
+                else
+                {
+                    products = new List<Produto>();
+                    ShowPopup("Erro ao realizar a pesquisa. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
+                }
             }
         }
         catch (Exception ex)
@@ -414,7 +443,8 @@ else
         (useName && !string.IsNullOrEmpty(searchCriteria.Name)) ||
         (useCategory && searchCriteria.CategoryId.HasValue && searchCriteria.CategoryId != 0) ||
         (useStore && !string.IsNullOrEmpty(searchCriteria.Store)) ||
-        (useDate && searchCriteria.DateFrom.HasValue);
+        (useDate && searchCriteria.DateFrom.HasValue) ||
+        (useFavorites && AuthService.IsLoggedIn && favoriteProductIds.Any());
 
     private void ShowPopup(string message, MessagePopup.MessageType type)
     {
