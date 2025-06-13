@@ -3,6 +3,7 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject WebApp.Services.AuthService AuthService
 
 <PageTitle>Exportar Relatórios</PageTitle>
 
@@ -10,18 +11,35 @@
 
 <div class="mb-3">
     <label for="reportSelect">Selecione o relatório:</label>
-    <select id="reportSelect" class="form-select" @bind="selectedReport">
+    <select id="reportSelect" class="form-select" @bind="selectedReportType">
         <option value="stores">Relatório Geral de Lojas</option>
         <option value="products">Relatório Geral de Produtos</option>
+        <option value="specificProduct">Relatório de Produto Específico</option>
     </select>
 </div>
+
+@if (selectedReportType == "specificProduct")
+{
+    <div class="mb-3">
+        <label for="productSelect">Selecione o Produto:</label>
+        <select id="productSelect" class="form-select" @bind="selectedProductId">
+            <option value="">Selecione um produto...</option>
+            @if (produtos != null)
+            {
+                @foreach (var produto in produtos)
+                {
+                    <option value="@produto.ProdutoId">@produto.Nome</option>
+                }
+            }
+        </select>
+    </div>
+}
 
 <div class="mb-3">
     <button class="btn btn-primary me-2" @onclick="ExportPdf">Exportar PDF</button>
     <button class="btn btn-secondary" @onclick="ExportCsv">Exportar CSV</button>
 </div>
 
-<!-- Popup para mensagens -->
 <MessagePopup
     IsVisible="@showPopup"
     Message="@popupMessage"
@@ -29,26 +47,70 @@
     OnClose="ClosePopup" />
 
 @code {
-    private string selectedReport = "stores";
+    private string selectedReportType = "stores";
+    private int? selectedProductId;
+    private List<ProdutoDto>? produtos; // Lista de produtos para o dropdown
     private bool showPopup = false;
     private string popupMessage = "";
     private MessagePopup.MessageType popupType = MessagePopup.MessageType.Success;
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.ValidateToken())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Buscar a lista de produtos do backend
+        try
+        {
+            var response = await Http.GetAsync("api/Relatorios/produtos");
+            if (response.IsSuccessStatusCode)
+            {
+                produtos = await response.Content.ReadFromJsonAsync<List<ProdutoDto>>();
+                if (produtos == null || !produtos.Any())
+                {
+                    ShowPopup("Nenhum produto disponível.", MessagePopup.MessageType.Info);
+                }
+            }
+            else
+            {
+                ShowPopup("Erro ao carregar a lista de produtos.", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro ao carregar produtos: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+    }
+
     private async Task ExportPdf()
     {
-        string endpoint = selectedReport switch
+        string endpoint;
+        if (selectedReportType == "specificProduct" && selectedProductId.HasValue)
         {
-            "stores" => "api/Export/lojas/pdf",
-            "products" => "api/Export/produtos/pdf",
-            _ => "api/Export/lojas/pdf"
-        };
+            endpoint = $"api/Export/produtos/{selectedProductId.Value}/pdf";
+        }
+        else
+        {
+            endpoint = selectedReportType switch
+            {
+                "stores" => "api/Export/lojas/pdf",
+                "products" => "api/Export/produtos/pdf",
+                _ => "api/Export/lojas/pdf"
+            };
+        }
         try
         {
             var response = await Http.GetAsync(endpoint);
             if (response.IsSuccessStatusCode)
             {
                 var pdfData = await response.Content.ReadAsByteArrayAsync();
-                await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.pdf", "application/pdf", pdfData);
+                string fileName = selectedReportType == "specificProduct"
+                    ? $"produto_{selectedProductId}_report.pdf"
+                    : $"{selectedReportType}_report.pdf";
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", pdfData);
                 ShowPopup("PDF exportado com sucesso!", MessagePopup.MessageType.Success);
             }
             else
@@ -57,14 +119,7 @@
                 try
                 {
                     var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao exportar o PDF. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup(errorObj?.Message ?? "Erro ao exportar o PDF.", MessagePopup.MessageType.Error);
                 }
                 catch
                 {
@@ -80,19 +135,30 @@
 
     private async Task ExportCsv()
     {
-        string endpoint = selectedReport switch
+        string endpoint;
+        if (selectedReportType == "specificProduct" && selectedProductId.HasValue)
         {
-            "stores" => "api/Export/lojas/csv",
-            "products" => "api/Export/produtos/csv", // Corrigido de "products" para "produtos"
-            _ => "api/Export/lojas/csv"
-        };
+            endpoint = $"api/Export/produtos/{selectedProductId.Value}/csv";
+        }
+        else
+        {
+            endpoint = selectedReportType switch
+            {
+                "stores" => "api/Export/lojas/csv",
+                "products" => "api/Export/produtos/csv",
+                _ => "api/Export/lojas/csv"
+            };
+        }
         try
         {
             var response = await Http.GetAsync(endpoint);
             if (response.IsSuccessStatusCode)
             {
                 var csvData = await response.Content.ReadAsByteArrayAsync();
-                await JS.InvokeVoidAsync("downloadFileFromBytes", $"{selectedReport}_report.csv", "text/csv", csvData);
+                string fileName = selectedReportType == "specificProduct"
+                    ? $"produto_{selectedProductId}_report.csv"
+                    : $"{selectedReportType}_report.csv";
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "text/csv", csvData);
                 ShowPopup("CSV exportado com sucesso!", MessagePopup.MessageType.Success);
             }
             else
@@ -101,14 +167,7 @@
                 try
                 {
                     var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao exportar o CSV. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup(errorObj?.Message ?? "Erro ao exportar o CSV.", MessagePopup.MessageType.Error);
                 }
                 catch
                 {
@@ -133,6 +192,13 @@
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+    }
+
+    // Classe DTO para os produtos
+    public class ProdutoDto
+    {
+        public int ProdutoId { get; set; }
+        public string Nome { get; set; } = string.Empty;
     }
 
     private class ErrorResponse

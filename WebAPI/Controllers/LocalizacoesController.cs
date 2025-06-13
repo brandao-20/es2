@@ -26,18 +26,18 @@ namespace WebAPI.Controllers
         {
             var localizacao = await _localizacaoRepository.GetByIdAsync(id);
             if (localizacao == null) return NotFound();
-            return localizacao;
+            return Ok(localizacao); // Encapsulado como ActionResult
         }
 
         [HttpPost]
-        public async Task<ActionResult<Localizacao>> Create(Localizacao localizacao)
+        public async Task<ActionResult<WebAPI.Entities.Localizacao>> Create([FromBody] WebAPI.Entities.Localizacao localizacao)
         {
             await _localizacaoRepository.AddAsync(localizacao);
             return CreatedAtAction(nameof(GetById), new { id = localizacao.LocalizacaoId }, localizacao);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, Localizacao localizacao)
+        public async Task<IActionResult> Update(int id, [FromBody] WebAPI.Entities.Localizacao localizacao)
         {
             if (id != localizacao.LocalizacaoId) return BadRequest();
 

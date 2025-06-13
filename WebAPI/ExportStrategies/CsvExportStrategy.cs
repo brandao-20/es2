@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text;
 using WebAPI.Entities;
 
@@ -8,11 +12,26 @@ namespace WebAPI.ExportStrategies
         public byte[] Export(List<Relatorio> data)
         {
             var sb = new StringBuilder();
+            // cabeçalho
             sb.AppendLine("NomeProduto,NomeLoja,Preco,Data,NomeCategoria");
+
             foreach (var item in data)
             {
-                sb.AppendLine($"{item.NomeProduto},{item.NomeLoja},{item.Preco},{item.Data:yyyy-MM-dd},{item.NomeCategoria}");
+                // força ponto decimal e formato de data invariant
+                var preco = item.Preco.ToString("F2", CultureInfo.InvariantCulture);
+                var dataStr = item.Data.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+                sb.AppendLine(
+                    string.Join(",",
+                        item.NomeProduto,
+                        item.NomeLoja,
+                        preco,
+                        dataStr,
+                        item.NomeCategoria
+                    )
+                );
             }
+
             return Encoding.UTF8.GetBytes(sb.ToString());
         }
     }

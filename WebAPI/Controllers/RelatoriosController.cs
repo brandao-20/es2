@@ -37,51 +37,67 @@ namespace WebAPI.Controllers
             try
             {
                 var lojas = await _lojaRepository.GetAllWithDetailsAsync();
+                Console.WriteLine($"[DEBUG] Total de lojas encontradas: {lojas.Count()}");
+
                 var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+                Console.WriteLine($"[DEBUG] Total de registros de preços encontrados: {registos.Count()}");
+                Console.WriteLine($"[DEBUG] Registros com Produto válido: {registos.Count(r => r.Produto != null)}");
+
                 var report = new List<LojaReportDto>();
 
                 foreach (var loja in lojas)
                 {
+                    Console.WriteLine($"[DEBUG] Processando loja: {loja.Nome} (LojaId: {loja.LojaId})");
+
                     var produtosInfo = registos
-                        .Where(r => r.LojaId == loja.LojaId)
+                        .Where(r => r.LojaId == loja.LojaId && r.Produto != null)
                         .GroupBy(r => r.ProdutoId)
                         .Select(g => new ProdutoPriceDto
                         {
                             ProdutoId = g.Key,
-                            ProdutoNome = g.Select(r => r.Produto != null ? r.Produto.Nome : "N/A").FirstOrDefault(),
-                            LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
-                            LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                            ProdutoNome = g.First().Produto?.Nome ?? "N/A",
+                            LatestPrice = g.OrderByDescending(r => r.DataRegisto).First().Preco,
+                            LatestDate = g.OrderByDescending(r => r.DataRegisto).First().DataRegisto
                         })
                         .ToList();
+                    Console.WriteLine($"[DEBUG] Produtos encontrados para LojaId {loja.LojaId}: {produtosInfo.Count}");
 
                     var categoriaCounts = registos
-                        .Where(r => r.LojaId == loja.LojaId)
-                        .GroupBy(r => r.Produto?.CategoriaId)
+                        .Where(r => r.LojaId == loja.LojaId && r.Produto != null && r.Produto.Categoria != null)
+                        .GroupBy(r => r.Produto.CategoriaId)
                         .Select(g => new CategoriaCountDto
                         {
-                            CategoriaId = g.Key ?? 0,
-                            CategoriaNome = g.Select(r => r.Produto != null && r.Produto.Categoria != null ? r.Produto.Categoria.Nome : "N/A").FirstOrDefault(),
-                            Count = g.Count()
+                            CategoriaId = g.Key,
+                            CategoriaNome = g.First().Produto.Categoria?.Nome ?? "N/A",
+                            Count = g.Select(r => r.ProdutoId).Distinct().Count()
                         })
                         .ToList();
+                    Console.WriteLine($"[DEBUG] Categorias encontradas para LojaId {loja.LojaId}: {categoriaCounts.Count}");
 
                     report.Add(new LojaReportDto
                     {
                         LojaId = loja.LojaId,
                         Nome = loja.Nome,
                         Endereco = loja.Endereco,
-                        Localizacao = loja.Localizacao,
+                        Localizacao = new Localizacao
+                        {
+                            Cidade = loja.Localizacao?.Cidade ?? "N/A",
+                            Pais = loja.Localizacao?.Pais ?? "Portugal",
+                            Latitude = (double)(loja.Localizacao?.Latitude ?? 0),
+                            Longitude = (double)(loja.Localizacao?.Longitude ?? 0)
+                        },
                         CategoriaCounts = categoriaCounts,
                         Produtos = produtosInfo
                     });
                 }
+
                 Console.WriteLine($"[DEBUG] Relatório de lojas gerado com sucesso: {report.Count} lojas.");
                 return Ok(report);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERROR] Erro ao gerar relatório de lojas: {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { Message = "Erro ao gerar relatório de lojas." });
+                return StatusCode(500, new { Message = "Erro ao gerar relatório de lojas.", Detail = ex.Message });
             }
         }
 
@@ -99,36 +115,45 @@ namespace WebAPI.Controllers
                 }
 
                 var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+                Console.WriteLine($"[DEBUG] Total de registros de preços encontrados: {registos.Count()}");
 
                 var produtosInfo = registos
-                    .Where(r => r.LojaId == lojaId)
+                    .Where(r => r.LojaId == lojaId && r.Produto != null)
                     .GroupBy(r => r.ProdutoId)
                     .Select(g => new ProdutoPriceDto
                     {
                         ProdutoId = g.Key,
-                        ProdutoNome = g.Select(r => r.Produto != null ? r.Produto.Nome : "N/A").FirstOrDefault(),
-                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
-                        LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                        ProdutoNome = g.First().Produto?.Nome ?? "N/A",
+                        LatestPrice = g.OrderByDescending(r => r.DataRegisto).First().Preco,
+                        LatestDate = g.OrderByDescending(r => r.DataRegisto).First().DataRegisto
                     })
                     .ToList();
+                Console.WriteLine($"[DEBUG] Produtos encontrados para LojaId {lojaId}: {produtosInfo.Count}");
 
                 var categoriaCounts = registos
-                    .Where(r => r.LojaId == lojaId)
-                    .GroupBy(r => r.Produto?.CategoriaId)
+                    .Where(r => r.LojaId == lojaId && r.Produto != null && r.Produto.Categoria != null)
+                    .GroupBy(r => r.Produto.CategoriaId)
                     .Select(g => new CategoriaCountDto
                     {
-                        CategoriaId = g.Key ?? 0,
-                        CategoriaNome = g.Select(r => r.Produto != null && r.Produto.Categoria != null ? r.Produto.Categoria.Nome : "N/A").FirstOrDefault(),
-                        Count = g.Count()
+                        CategoriaId = g.Key,
+                        CategoriaNome = g.First().Produto.Categoria?.Nome ?? "N/A",
+                        Count = g.Select(r => r.ProdutoId).Distinct().Count()
                     })
                     .ToList();
+                Console.WriteLine($"[DEBUG] Categorias encontradas para LojaId {lojaId}: {categoriaCounts.Count}");
 
                 var dto = new LojaReportDto
                 {
                     LojaId = loja.LojaId,
                     Nome = loja.Nome,
                     Endereco = loja.Endereco,
-                    Localizacao = loja.Localizacao,
+                    Localizacao = new Localizacao
+                    {
+                        Cidade = loja.Localizacao?.Cidade ?? "N/A",
+                        Pais = loja.Localizacao?.Pais ?? "Portugal",
+                        Latitude = (double)(loja.Localizacao?.Latitude ?? 0),
+                        Longitude = (double)(loja.Localizacao?.Longitude ?? 0)
+                    },
                     CategoriaCounts = categoriaCounts,
                     Produtos = produtosInfo
                 };
@@ -139,7 +164,28 @@ namespace WebAPI.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERROR] Erro ao gerar relatório para LojaId {lojaId}: {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { Message = "Erro ao gerar relatório da loja." });
+                return StatusCode(500, new { Message = "Erro ao gerar relatório da loja.", Detail = ex.Message });
+            }
+        }
+
+        [HttpGet("produtos")]
+        public async Task<ActionResult<IEnumerable<ProdutoDto>>> GetAllProdutos()
+        {
+            try
+            {
+                var produtos = await _produtoRepository.GetAllAsync();
+                var produtoDtos = produtos.Select(p => new ProdutoDto
+                {
+                    ProdutoId = p.ProdutoId,
+                    Nome = p.Nome
+                }).ToList();
+                Console.WriteLine($"[DEBUG] Total de produtos encontrados: {produtoDtos.Count}");
+                return Ok(produtoDtos);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Erro ao listar produtos: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, new { Message = "Erro ao listar produtos.", Detail = ex.Message });
             }
         }
 
@@ -174,7 +220,7 @@ namespace WebAPI.Controllers
                 {
                     ProdutoId = produto.ProdutoId,
                     Nome = produto.Nome,
-                    Categoria = produto.Categoria?.Nome,
+                    Categoria = produto.Categoria?.Nome ?? "N/A",
                     Lojas = lojasInfo
                 };
 
@@ -184,7 +230,7 @@ namespace WebAPI.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERROR] Erro ao gerar relatório para ProdutoId {produtoId}: {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { Message = "Erro ao gerar relatório do produto." });
+                return StatusCode(500, new { Message = "Erro ao gerar relatório do produto.", Detail = ex.Message });
             }
         }
 
@@ -268,7 +314,7 @@ namespace WebAPI.Controllers
                                 }
                             }
                         })
-                        .OrderBy(h => h.Prices.First().Date)
+                        .OrderBy(h => h.Prices?.FirstOrDefault()?.Date ?? DateTime.MinValue)
                         .ToList();
                 }
 
@@ -303,14 +349,24 @@ namespace WebAPI.Controllers
         }
     }
 
+    // DTOs
     public class LojaReportDto
     {
         public int LojaId { get; set; }
         public string Nome { get; set; } = string.Empty;
         public string Endereco { get; set; } = string.Empty;
-        public Localizacao? Localizacao { get; set; }
+        public Localizacao Localizacao { get; set; } = new Localizacao();
         public List<CategoriaCountDto> CategoriaCounts { get; set; } = new();
         public List<ProdutoPriceDto> Produtos { get; set; } = new();
+    }
+
+    public class Localizacao
+    {
+        public int LocalizacaoId { get; set; }
+        public string? Cidade { get; set; }
+        public string? Pais { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
     }
 
     public class CategoriaCountDto
@@ -326,6 +382,12 @@ namespace WebAPI.Controllers
         public string? ProdutoNome { get; set; }
         public decimal LatestPrice { get; set; }
         public DateTime LatestDate { get; set; }
+    }
+
+    public class ProdutoDto
+    {
+        public int ProdutoId { get; set; }
+        public string Nome { get; set; } = string.Empty;
     }
 
     public class ProdutoReportDto

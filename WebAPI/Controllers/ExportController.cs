@@ -131,5 +131,97 @@ namespace WebAPI.Controllers
             var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
             return File(csvBytes, "text/csv", "relatorio_produtos.csv");
         }
+
+        // Exporta Relatório Específico de Produto em PDF
+        // Endpoint: GET /api/Export/produtos/{produtoId}/pdf
+        [HttpGet("produtos/{produtoId:int}/pdf")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportProdutoPdf(int produtoId)
+        {
+            var produto = await _produtoRepository.GetByIdWithDetailsAsync(produtoId);
+            if (produto == null)
+            {
+                return NotFound(new { Message = "Produto não encontrado." });
+            }
+
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+            var lojasInfo = registos
+                .Where(r => r.ProdutoId == produtoId)
+                .GroupBy(r => r.LojaId)
+                .Select(g => new
+                {
+                    LojaNome = g.Select(r => r.Loja != null ? r.Loja.Nome : "N/A").FirstOrDefault(),
+                    LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
+                    LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                })
+                .ToList();
+
+            using var memoryStream = new MemoryStream();
+            var writer = new PdfWriter(memoryStream);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
+
+            document.Add(new Paragraph($"Relatório do Produto: {produto.Nome}")
+                .SetFontSize(16)
+                .SetBold()
+                .SetTextAlignment(TextAlignment.CENTER));
+            document.Add(new Paragraph($"Categoria: {produto.Categoria?.Nome ?? "N/A"}")
+                .SetFontSize(12));
+            document.Add(new Paragraph(" "));
+
+            var table = new Table(UnitValue.CreatePercentArray(new float[] { 40, 30, 30 }));
+            table.SetWidth(UnitValue.CreatePercentValue(100));
+            table.AddHeaderCell("Loja");
+            table.AddHeaderCell("Último Preço");
+            table.AddHeaderCell("Data do Registro");
+
+            foreach (var loja in lojasInfo)
+            {
+                table.AddCell(loja.LojaNome);
+                table.AddCell(loja.LatestPrice.ToString("C"));
+                table.AddCell(loja.LatestDate.ToString("g"));
+            }
+
+            document.Add(table);
+            document.Close();
+
+            var pdfBytes = memoryStream.ToArray();
+            return File(pdfBytes, "application/pdf", $"relatorio_produto_{produtoId}.pdf");
+        }
+
+        // Exporta Relatório Específico de Produto em CSV
+        // Endpoint: GET /api/Export/produtos/{produtoId}/csv
+        [HttpGet("produtos/{produtoId:int}/csv")]
+        [Authorize(Roles = "Admin,UserManager")]
+        public async Task<IActionResult> ExportProdutoCsv(int produtoId)
+        {
+            var produto = await _produtoRepository.GetByIdWithDetailsAsync(produtoId);
+            if (produto == null)
+            {
+                return NotFound(new { Message = "Produto não encontrado." });
+            }
+
+            var registos = await _registosPrecoRepository.GetAllWithDetailsAsync();
+            var lojasInfo = registos
+                .Where(r => r.ProdutoId == produtoId)
+                .GroupBy(r => r.LojaId)
+                .Select(g => new
+                {
+                    LojaNome = g.Select(r => r.Loja != null ? r.Loja.Nome : "N/A").FirstOrDefault(),
+                    LatestPrice = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.Preco ?? 0,
+                    LatestDate = g.OrderByDescending(r => r.DataRegisto).FirstOrDefault()?.DataRegisto ?? DateTime.MinValue
+                })
+                .ToList();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Loja;Último Preço;Data do Registro");
+            foreach (var loja in lojasInfo)
+            {
+                sb.AppendLine($"{loja.LojaNome};{loja.LatestPrice.ToString("C")};{loja.LatestDate.ToString("g")}");
+            }
+
+            var csvBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return File(csvBytes, "text/csv", $"relatorio_produto_{produtoId}.csv");
+        }
     }
 }

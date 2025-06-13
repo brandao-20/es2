@@ -12,6 +12,10 @@
 {
     <p>Carregando relatório...</p>
 }
+else if (!lojasReport.Any())
+{
+    <p>Nenhum dado disponível para o relatório de lojas.</p>
+}
 else
 {
     @foreach (var loja in lojasReport)
@@ -21,14 +25,12 @@ else
                 <strong>@loja.Nome</strong> - @loja.Endereco
             </div>
             <div class="card-body">
-                <p><em>Localização:</em> @loja.Localizacao?.Cidade, @loja.Localizacao?.Pais</p>
                 <p><strong>Produtos por Categoria:</strong></p>
-                <ul>
-                    @foreach (var cat in loja.CategoriaCounts)
-                    {
-                        <li>@cat.CategoriaNome: @cat.Count produtos</li>
-                    }
-                </ul>
+                <p>
+                    @(loja.CategoriaCounts != null && loja.CategoriaCounts.Any() ?
+                        string.Join(", ", loja.CategoriaCounts.Select(cat => $"{cat.CategoriaNome}: {cat.Count} {(cat.Count == 1 ? "produto" : "produtos")}")) :
+                        "Nenhuma categoria disponível")
+                </p>
                 <p><strong>Produtos e Últimos Preços:</strong></p>
                 <table class="table">
                     <thead>
@@ -39,12 +41,21 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var prod in loja.Produtos)
+                        @if (loja.Produtos != null && loja.Produtos.Any())
+                        {
+                            @foreach (var prod in loja.Produtos)
+                            {
+                                <tr>
+                                    <td>@(prod.ProdutoNome ?? "N/A")</td>
+                                    <td>@prod.LatestPrice.ToString("C", new System.Globalization.CultureInfo("pt-PT"))</td>
+                                    <td>@prod.LatestDate.ToString("g")</td>
+                                </tr>
+                            }
+                        }
+                        else
                         {
                             <tr>
-                                <td>@prod.ProdutoNome</td>
-                                <td>@prod.LatestPrice.ToString("C")</td>
-                                <td>@prod.LatestDate.ToString("g")</td>
+                                <td colspan="3">Nenhum produto disponível para esta loja</td>
                             </tr>
                         }
                     </tbody>
@@ -54,7 +65,6 @@ else
     }
 }
 
-<!-- Popup para mensagens -->
 <MessagePopup
     IsVisible="@showPopup"
     Message="@popupMessage"
@@ -71,36 +81,46 @@ else
     {
         if (!AuthService.ValidateToken())
         {
+            Console.WriteLine("[DEBUG] Token inválido, redirecionando para /login");
             Navigation.NavigateTo("/login");
             return;
         }
 
         try
         {
+            Console.WriteLine("[DEBUG] Fazendo requisição para api/Relatorios/lojas");
             var response = await Http.GetAsync("api/Relatorios/lojas");
+            Console.WriteLine($"[DEBUG] Status da resposta: {response.StatusCode}");
+
             if (response.IsSuccessStatusCode)
             {
+                var json = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[DEBUG] Dados recebidos: {json}");
                 lojasReport = await response.Content.ReadFromJsonAsync<List<LojaReportDto>>();
+
                 if (lojasReport == null || !lojasReport.Any())
                 {
+                    Console.WriteLine("[DEBUG] Nenhum dado retornado pela API");
                     ShowPopup("Nenhum dado disponível para o relatório de lojas.", MessagePopup.MessageType.Info);
+                }
+                else
+                {
+                    Console.WriteLine($"[DEBUG] Total de lojas retornadas: {lojasReport.Count}");
+                    foreach (var loja in lojasReport)
+                    {
+                        Console.WriteLine($"[DEBUG] Loja: {loja.Nome}, Produtos: {(loja.Produtos != null ? loja.Produtos.Count : 0)}, Categorias: {(loja.CategoriaCounts != null ? loja.CategoriaCounts.Count : 0)}");
+                    }
                 }
             }
             else
             {
                 lojasReport = new List<LojaReportDto>();
                 var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[ERROR] Erro na API: {errorContent}");
                 try
                 {
                     var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar o relatório de lojas. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
+                    ShowPopup(errorObj?.Message ?? "Erro ao carregar o relatório de lojas.", MessagePopup.MessageType.Error);
                 }
                 catch
                 {
@@ -110,6 +130,7 @@ else
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[ERROR] Exceção ao carregar relatório: {ex.Message}");
             lojasReport = new List<LojaReportDto>();
             ShowPopup($"Erro inesperado ao carregar o relatório de lojas: {ex.Message}", MessagePopup.MessageType.Error);
         }
@@ -128,21 +149,24 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
+    // Classes DTO
     public class LojaReportDto
     {
         public int LojaId { get; set; }
         public string Nome { get; set; } = string.Empty;
         public string Endereco { get; set; } = string.Empty;
-        public LocalizacaoDto? Localizacao { get; set; }
+        public Localizacao Localizacao { get; set; } = new Localizacao();
         public List<CategoriaCountDto> CategoriaCounts { get; set; } = new();
         public List<ProdutoPriceDto> Produtos { get; set; } = new();
     }
 
-    public class LocalizacaoDto
+    public class Localizacao
     {
         public int LocalizacaoId { get; set; }
         public string? Cidade { get; set; }
         public string? Pais { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
     }
 
     public class CategoriaCountDto

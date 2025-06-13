@@ -12,6 +12,10 @@
 {
     <p>Carregando relatório...</p>
 }
+else if (!produtosReport.Any())
+{
+    <p>Nenhum produto disponível.</p>
+}
 else
 {
     @foreach (var produto in produtosReport)

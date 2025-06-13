@@ -1,4 +1,4 @@
-@page "/relatorioproduto/{produtoId:int}"
+@page "/relatorioproduto"
 @using System.Net.Http.Json
 @using WebApp.Components
 @inject HttpClient Http
@@ -8,42 +8,63 @@
 <PageTitle>Relatório do Produto</PageTitle>
 <h3>Relatório do Produto</h3>
 
-@if (produtoReport == null)
+@if (produtos == null)
 {
-    <p>Carregando relatório...</p>
+    <p>Carregando produtos...</p>
+}
+else if (!produtos.Any())
+{
+    <p>Nenhum produto disponível.</p>
 }
 else
 {
-    <div class="card mb-3">
-        <div class="card-header">
-            <strong>@produtoReport.Nome</strong> - Categoria: @produtoReport.Categoria
-        </div>
-        <div class="card-body">
-            <p><strong>Lojas e Últimos Preços:</strong></p>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Loja</th>
-                        <th>Último Preço</th>
-                        <th>Data do Registro</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var loja in produtoReport.Lojas)
-                    {
-                        <tr>
-                            <td>@loja.LojaNome</td>
-                            <td>@loja.LatestPrice.ToString("C")</td>
-                            <td>@loja.LatestDate.ToString("g")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+    <div class="mb-3">
+        <label for="produtoSelect" class="form-label">Selecione um Produto:</label>
+        <select id="produtoSelect" class="form-select" @bind="selectedProdutoId" @bind:after="LoadProdutoReport">
+            <option value="0">Selecione um produto...</option>
+            @foreach (var produto in produtos)
+            {
+                <option value="@produto.ProdutoId">@produto.Nome</option>
+            }
+        </select>
     </div>
+
+    @if (produtoReport != null)
+    {
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>@produtoReport.Nome</strong> - Categoria: @produtoReport.Categoria
+            </div>
+            <div class="card-body">
+                <p><strong>Lojas e Últimos Preços:</strong></p>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Loja</th>
+                            <th>Último Preço</th>
+                            <th>Data do Registo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var loja in produtoReport.Lojas)
+                        {
+                            <tr>
+                                <td>@loja.LojaNome</td>
+                                <td>@loja.LatestPrice.ToString("C", new System.Globalization.CultureInfo("pt-PT"))</td>
+                                <td>@loja.LatestDate.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (selectedProdutoId > 0)
+    {
+        <p>Carregando relatório...</p>
+    }
 }
 
-<!-- Popup para mensagens -->
 <MessagePopup
     IsVisible="@showPopup"
     Message="@popupMessage"
@@ -51,7 +72,8 @@ else
     OnClose="ClosePopup" />
 
 @code {
-    [Parameter] public int produtoId { get; set; }
+    private List<ProdutoDto>? produtos;
+    private int selectedProdutoId;
     private ProdutoReportDto? produtoReport;
     private bool showPopup = false;
     private string popupMessage = "";
@@ -65,9 +87,45 @@ else
             return;
         }
 
+        await LoadProdutos();
+    }
+
+    private async Task LoadProdutos()
+    {
         try
         {
-            var response = await Http.GetAsync($"api/Relatorios/produtos/{produtoId}");
+            var response = await Http.GetAsync("api/Relatorios/produtos");
+            if (response.IsSuccessStatusCode)
+            {
+                produtos = await response.Content.ReadFromJsonAsync<List<ProdutoDto>>();
+                if (produtos == null || !produtos.Any())
+                {
+                    ShowPopup("Nenhum produto disponível.", MessagePopup.MessageType.Info);
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                ShowPopup($"Erro ao carregar a lista de produtos: {errorContent}", MessagePopup.MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup($"Erro ao carregar produtos: {ex.Message}", MessagePopup.MessageType.Error);
+        }
+    }
+
+    private async Task LoadProdutoReport()
+    {
+        if (selectedProdutoId == 0)
+        {
+            produtoReport = null;
+            return;
+        }
+
+        try
+        {
+            var response = await Http.GetAsync($"api/Relatorios/produtos/{selectedProdutoId}");
             if (response.IsSuccessStatusCode)
             {
                 produtoReport = await response.Content.ReadFromJsonAsync<ProdutoReportDto>();
@@ -79,27 +137,14 @@ else
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(errorContent);
-                    if (errorObj != null && !string.IsNullOrEmpty(errorObj.Message))
-                    {
-                        ShowPopup(errorObj.Message, MessagePopup.MessageType.Error);
-                    }
-                    else
-                    {
-                        ShowPopup("Erro ao carregar o relatório do produto. Tente novamente mais tarde.", MessagePopup.MessageType.Error);
-                    }
-                }
-                catch
-                {
-                    ShowPopup($"Erro ao carregar o relatório do produto: {errorContent}", MessagePopup.MessageType.Error);
-                }
+                ShowPopup($"Erro ao carregar o relatório do produto: {errorContent}", MessagePopup.MessageType.Error);
+                produtoReport = null;
             }
         }
         catch (Exception ex)
         {
-            ShowPopup($"Erro inesperado ao carregar o relatório do produto: {ex.Message}", MessagePopup.MessageType.Error);
+            ShowPopup($"Erro ao carregar o relatório: {ex.Message}", MessagePopup.MessageType.Error);
+            produtoReport = null;
         }
     }
 
@@ -114,6 +159,12 @@ else
     {
         showPopup = false;
         await InvokeAsync(StateHasChanged);
+    }
+
+    public class ProdutoDto
+    {
+        public int ProdutoId { get; set; }
+        public string Nome { get; set; } = string.Empty;
     }
 
     public class ProdutoReportDto
